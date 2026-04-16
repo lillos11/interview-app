@@ -22,6 +22,7 @@ import {
 
 interface BarRaiserStudioProps {
   questions: readonly InterviewQuestion[];
+  initialQuestionId?: string | null;
   onLogReview?: (
     question: InterviewQuestion,
     review: InterviewAnswerReview,
@@ -215,12 +216,16 @@ function getTimingFeedback(durationSeconds: number, targetSeconds: number) {
 
 export default function BarRaiserStudio({
   questions,
+  initialQuestionId,
   onLogReview,
 }: BarRaiserStudioProps) {
   const [selectedLensId, setSelectedLensId] =
     useState<InterviewerLensId>("l7_bar_raiser");
-  const [selectedQuestionId, setSelectedQuestionId] = useState(
-    questions[0]?.id ?? "",
+  const [selectedQuestionId, setSelectedQuestionId] = useState(() =>
+    initialQuestionId &&
+    questions.some((question) => question.id === initialQuestionId)
+      ? initialQuestionId
+      : (questions[0]?.id ?? ""),
   );
   const [answer, setAnswer] = useState("");
   const [recordingError, setRecordingError] = useState<string | null>(null);
@@ -315,6 +320,35 @@ export default function BarRaiserStudio({
     Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
   const secureContext =
     typeof window !== "undefined" ? window.isSecureContext : false;
+  const canAttemptRecording = recordingSupported && secureContext;
+  const primaryRecordingButtonLabel = useMemo(() => {
+    if (isPreparingRecorder) {
+      return "Preparing mic...";
+    }
+
+    if (isRecording) {
+      return "Stop recording";
+    }
+
+    if (!canAttemptRecording) {
+      return "Live recording unavailable here";
+    }
+
+    if (microphoneStatus === "granted") {
+      return "Record answer now";
+    }
+
+    if (microphoneStatus === "denied") {
+      return "Allow mic and record";
+    }
+
+    return "Record answer now";
+  }, [
+    canAttemptRecording,
+    isPreparingRecorder,
+    isRecording,
+    microphoneStatus,
+  ]);
 
   useEffect(() => {
     const refreshMicrophoneStatus = async () => {
@@ -840,7 +874,7 @@ export default function BarRaiserStudio({
                 Recording studio
               </p>
               <h3 className="mt-1 text-xl font-semibold text-slate-950">
-                Say the answer out loud, then inspect the evidence.
+                Tap record, answer out loud, then inspect the evidence.
               </h3>
             </div>
             <div className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
@@ -879,19 +913,59 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
+          <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white shadow-[0_18px_60px_rgba(15,23,42,0.2)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+              Live take
+            </p>
+            <h4 className="mt-2 text-xl font-semibold">
+              Nothing records automatically. Press the button below to start.
+            </h4>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/78">
+              Use this like a real interview rep: start the take, answer out
+              loud, stop the recording, then score the transcript brutally.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isPreparingRecorder || !canAttemptRecording}
+                className={classNames(
+                  "rounded-full px-5 py-3 text-sm font-semibold shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
+                  isRecording
+                    ? "bg-rose-500 text-white hover:bg-rose-400"
+                    : "bg-cyan-300 text-slate-950 hover:bg-cyan-200",
+                )}
+              >
+                {primaryRecordingButtonLabel}
+              </button>
+              <button
+                type="button"
+                onClick={requestMicrophoneAccess}
+                disabled={isRecording || isPreparingRecorder || !canAttemptRecording}
+                className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Check microphone
+              </button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-white/10 px-3 py-1 text-white/82">
+                Microphone: {getMicrophoneStatusLabel(microphoneStatus)}
+              </span>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-white/82">
+                Secure context: {secureContext ? "ready" : "not secure"}
+              </span>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-white/82">
+                Transcript:{" "}
+                {speechRecognitionSupported ? "live when supported" : "manual"}
+              </span>
+            </div>
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={requestMicrophoneAccess}
-              disabled={isRecording || isPreparingRecorder}
-              className="rounded-full border border-cyan-300 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Enable microphone
-            </button>
-            <button
-              type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isPreparingRecorder}
+              disabled={isPreparingRecorder || !canAttemptRecording}
               className={classNames(
                 "rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
                 isRecording
@@ -899,11 +973,7 @@ export default function BarRaiserStudio({
                   : "bg-slate-950 hover:bg-slate-800",
               )}
             >
-              {isPreparingRecorder
-                ? "Preparing mic..."
-                : isRecording
-                  ? "Stop recording"
-                  : "Start recording"}
+              {primaryRecordingButtonLabel}
             </button>
             <button
               type="button"
@@ -961,7 +1031,9 @@ export default function BarRaiserStudio({
 
           <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/90 p-4 text-sm leading-6 text-slate-700">
             Live recording works best on localhost or HTTPS with microphone
-            permission enabled. Secure context:{" "}
+            permission enabled. If the big record button is disabled, the page
+            is not in a browser context that allows mic capture. Secure
+            context:{" "}
             <span className="font-semibold text-slate-950">
               {secureContext ? "ready" : "not secure"}
             </span>

@@ -57,12 +57,14 @@ import {
   type StoryDraft,
 } from "@/lib/interview";
 import BarRaiserStudio from "@/components/BarRaiserStudio";
+import ExecutiveCoachPanel from "@/components/ExecutiveCoachPanel";
 
 type InterviewTab =
   | "cockpit"
   | "star_lab"
   | "drills"
   | "bar_raiser"
+  | "executive_coach"
   | "frameworks"
   | "game_day";
 type CompetencyFilter = CompetencyId | "all";
@@ -88,6 +90,7 @@ const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "star_lab", label: "STAR Lab" },
   { id: "drills", label: "Mock Drills" },
   { id: "bar_raiser", label: "Bar Raiser" },
+  { id: "executive_coach", label: "Exec Coach" },
   { id: "frameworks", label: "Question Bank" },
   { id: "game_day", label: "Game Day" },
 ];
@@ -234,6 +237,9 @@ export default function HomePage() {
     createEmptyStoryWriterInput(),
   );
   const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
+  const [barRaiserQuestionId, setBarRaiserQuestionId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -630,6 +636,21 @@ export default function HomePage() {
     setDrillRevealed(false);
     setDrillRating(null);
     setDrillFinished(false);
+  };
+
+  const openQuestionInBarRaiser = (questionId: string) => {
+    const question = getInterviewQuestionById(questionId);
+
+    if (!question) {
+      return;
+    }
+
+    setSelectedFamily(question.sourceFamily);
+    setSelectedCategoryId(question.sourceCategoryId);
+    setSelectedCompetency(question.competency);
+    setBarRaiserQuestionId(question.id);
+    resetPracticeState();
+    setActiveTab("bar_raiser");
   };
 
   const rotateQuestionBank = (step: number) => {
@@ -2561,8 +2582,24 @@ export default function HomePage() {
 
       {activeTab === "bar_raiser" ? (
         <BarRaiserStudio
+          key={`bar-raiser-${barRaiserQuestionId ?? "default"}-${selectedFamily}-${effectiveSelectedCategoryId}-${selectedCompetency}`}
           questions={filteredQuestions}
+          initialQuestionId={barRaiserQuestionId}
           onLogReview={logBarRaiserReview}
+        />
+      ) : null}
+
+      {activeTab === "executive_coach" ? (
+        <ExecutiveCoachPanel
+          progress={progress}
+          selectedFamily={selectedFamily}
+          selectedCategory={selectedCategory}
+          selectedCompetency={selectedCompetency}
+          storyDraft={storyDraft}
+          currentQuestion={currentQuestionBankEntry}
+          onPracticeQuestion={openQuestionInBarRaiser}
+          onLoadPrepDeckStory={loadPrepDeckStory}
+          onLoadSavedStory={loadStoryForEdit}
         />
       ) : null}
 
@@ -2643,7 +2680,11 @@ export default function HomePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("bar_raiser")}
+                    onClick={() =>
+                      currentQuestionBankEntry
+                        ? openQuestionInBarRaiser(currentQuestionBankEntry.id)
+                        : setActiveTab("bar_raiser")
+                    }
                     className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
                   >
                     Practice this prompt
