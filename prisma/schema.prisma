@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model UserSettings {
+  id                      Int      @id
+  amazonHourlyPay         Float
+  amazonPlannedHours      Float
+  amazonOtHours           Float    @default(0)
+  amazonOtMultiplier      Float    @default(1.5)
+  fellowshipHourlyPay     Float
+  fellowshipPlannedHours  Float
+  fellowshipWeeklyCap     Float
+  taxesPercent            Float
+  four01kPercent          Float
+  insuranceWeekly         Float
+  otherDeductionsWeekly   Float
+  uberWeekly              Float
+  fixedBillsWeekly        Float
+  foodBaselineWeekly      Float
+  commuteMinutes          Int      @default(30)
+  gymTargetSessions       Int      @default(3)
+  studyTargetMinutes      Int      @default(300)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model TimeEntry {
+  id        Int          @id @default(autoincrement())
+  dateTime  DateTime
+  category  String
+  minutes   Int
+  note      String?
+  createdAt DateTime     @default(now())
+}
+
+model Task {
+  id               Int        @id @default(autoincrement())
+  title            String
+  course           String
+  module           String
+  dueDate          DateTime
+  rubricChecklist  String
+  status           String     @default("TODO")
+  estimatedMinutes Int
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model DebtPlan {
+  id             Int      @id
+  balance        Float
+  weeksRemaining Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TuitionPlan {
+  id            Int      @id
+  amountDue     Float
+  weeksUntilDue Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SavingsBucket {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  currentAmount Float
+  targetAmount Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WeeklySnapshot {
+  id              Int      @id @default(autoincrement())
+  weekStartDate   DateTime @unique
+  grossIncome     Float
+  netIncome       Float
+  essentials      Float
+  surplus         Float
+  allocationsJson String
+  createdAt       DateTime @default(now())
+}
+
+model SymptomEntry {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  tremor    Boolean  @default(false)
+  tingling  Boolean  @default(false)
+  cramps    Boolean  @default(false)
+  fatigue   Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+}

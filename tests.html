@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LifeOS Finance Tests</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 1rem;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #111c33;
+        border: 1px solid #233153;
+        border-radius: 12px;
+        padding: 1rem;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .ok {
+        color: #34d399;
+      }
+      .fail {
+        color: #f87171;
+      }
+      code {
+        background: #0b1428;
+        border: 1px solid #233153;
+        border-radius: 6px;
+        padding: 0.1rem 0.3rem;
+      }
+      ul {
+        display: grid;
+        gap: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Finance Engine Tests</h1>
+        <p>Open this page in browser to validate allocation behavior.</p>
+        <p id="summary"></p>
+        <ul id="results"></ul>
+      </section>
+    </main>
+
+    <script type="module">
+      import { allocateWeek } from "./js/finance.js";
+
+      const baseInput = {
+        income: {
+          amazonRate: 26.5,
+          amazonHours: 40,
+          otHours: 0,
+          otMultiplier: 1.5,
+          fellowshipRate: 17,
+          fellowshipHours: 30,
+          fellowshipCap: 40,
+        },
+        deductions: {
+          taxesPct: 20,
+          k401Pct: 15,
+          k401Base: "gross",
+          insuranceWeekly: 60,
+          otherDeductionsWeekly: 0,
+        },
+        essentials: {
+          fixedBillsWeekly: 500,
+          foodBaselineWeekly: 100,
+          uberWeekly: 200,
+        },
+        debt: {
+          balance: 2500,
+          weeksRemaining: 10,
+        },
+        tuition: {
+          amountDue: 1800,
+          weeksUntilDue: 12,
+        },
+        buckets: {
+          uber: { balance: 0 },
+          emergency: { balance: 0, target: 1000 },
+          tuition: { balance: 0, target: 1800 },
+          goal: { balance: 0 },
+        },
+      };
+
+      const clone = (value) => JSON.parse(JSON.stringify(value));
+
+      function runTest(name, fn) {
+        try {
+          fn();
+          return { name, ok: true };
+        } catch (error) {
+          return { name, ok: false, error: error.message || String(error) };
+        }
+      }
+
+      function assert(condition, message) {
+        if (!condition) {
+          throw new Error(message);
+        }
+      }
+
+      const tests = [
+        runTest("negative surplus marks off track", () => {
+          const input = clone(baseInput);
+          input.income.amazonRate = 10;
+          input.income.amazonHours = 10;
+          input.income.fellowshipRate = 0;
+          input.income.fellowshipHours = 0;
+          input.essentials.fixedBillsWeekly = 900;
+          const result = allocateWeek(input);
+          assert(result.flags.offTrack === true, "Expected offTrack true");
+          assert(result.flags.gap > 0, "Expected positive gap");
+        }),
+        runTest("emergency already funded yields zero emergency requirement", () => {
+          const input = clone(baseInput);
+          input.buckets.emergency.balance = 1000;
+          const result = allocateWeek(input);
+          assert(result.requirements.emergency === 0, "Emergency requirement should be 0");
+          assert(result.allocations.emergency === 0, "Emergency allocation should be 0");
+        }),
+        runTest("weeksRemaining=1 sets required debt to full balance", () => {
+          const input = clone(baseInput);
+          input.debt.balance = 800;
+          input.debt.weeksRemaining = 1;
+          const result = allocateWeek(input);
+          assert(result.requirements.debtRequired === 800, "Debt required should equal full debt balance");
+        }),
+        runTest("tuition weeksUntilDue=1 sets full tuition requirement", () => {
+          const input = clone(baseInput);
+          input.tuition.amountDue = 1200;
+          input.tuition.weeksUntilDue = 1;
+          input.buckets.tuition.balance = 0;
+          const result = allocateWeek(input);
+          assert(result.requirements.tuition === 1200, "Tuition requirement should equal full tuition due");
+        }),
+      ];
+
+      const passed = tests.filter((t) => t.ok).length;
+      const failed = tests.length - passed;
+
+      const summary = document.getElementById("summary");
+      summary.innerHTML = `Passed <strong class="ok">${passed}</strong> / ${tests.length} • Failed <strong class="${
+        failed ? "fail" : "ok"
+      }">${failed}</strong>`;
+
+      const results = document.getElementById("results");
+      results.innerHTML = tests
+        .map(
+          (t) =>
+            `<li class="${t.ok ? "ok" : "fail"}">${t.ok ? "PASS" : "FAIL"}: ${t.name}${
+              t.ok ? "" : ` — <code>${t.error}</code>`
+            }</li>`
+        )
+        .join("");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1761 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+import {
+  buildStoryPressureTest,
+  buildPitchPreview,
+  buildStarCoachTips,
+  coerceInterviewProgress,
+  createEmptyStoryDraft,
+  createInitialInterviewProgress,
+  deleteStarStory,
+  FRAMEWORK_CARDS,
+  GAME_DAY_CHECKLIST,
+  getCompetencyById,
+  getCompetencyConfidence,
+  getInterviewQuestionById,
+  getOverallReadiness,
+  getQuestionCategoriesByFamily,
+  getQuestionCategoryById,
+  getStoryCoverage,
+  getStoryCategoryCoverage,
+  getWeakestCompetency,
+  INTERVIEW_COMPETENCIES,
+  INTERVIEW_QUESTION_CATEGORIES,
+  INTERVIEW_QUESTIONS,
+  INTERVIEW_SOURCE_FAMILY_LABELS,
+  INTERVIEW_STAGES,
+  INTERVIEW_STORAGE_KEY,
+  NEGOTIATION_REMINDERS,
+  pickDrillQuestions,
+  recordDrillResult,
+  RED_FLAGS,
+  saveStarStory,
+  scoreStarStory,
+  SMART_QUESTIONS,
+  STAR_PROMPTS,
+  toggleChecklistItem,
+  toggleMasteredFramework,
+  updatePitchPack,
+  type CompetencyId,
+  type DrillRating,
+  type InterviewPrepProgress,
+  type InterviewQuestion,
+  type InterviewSourceFamily,
+  type StoryDraft
+} from '@/lib/interview';
+import BarRaiserStudio from '@/components/BarRaiserStudio';
+
+type InterviewTab = 'cockpit' | 'star_lab' | 'drills' | 'bar_raiser' | 'frameworks' | 'game_day';
+type CompetencyFilter = CompetencyId | 'all';
+type CategoryFilter = string | 'all';
+type EditableStoryField = 'competency' | 'title' | 'situation' | 'task' | 'action' | 'result' | 'reflection';
+
+const tabs: Array<{ id: InterviewTab; label: string }> = [
+  { id: 'cockpit', label: 'Cockpit' },
+  { id: 'star_lab', label: 'STAR Lab' },
+  { id: 'drills', label: 'Mock Drills' },
+  { id: 'bar_raiser', label: 'Bar Raiser' },
+  { id: 'frameworks', label: 'Frameworks' },
+  { id: 'game_day', label: 'Game Day' }
+];
+
+const drillLengthOptions = [3, 5, 8] as const;
+const amazonFamilies: InterviewSourceFamily[] = ['lp', 'functional'];
+
+const ratingMeta: Record<
+  DrillRating,
+  { label: string; buttonClass: string; badgeClass: string; summaryClass: string }
+> = {
+  needs_work: {
+    label: 'Needs work',
+    buttonClass: 'border border-rose-300 bg-rose-50 text-rose-900 hover:border-rose-400',
+    badgeClass: 'bg-rose-100 text-rose-900',
+    summaryClass: 'text-rose-700'
+  },
+  solid: {
+    label: 'Solid',
+    buttonClass: 'border border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400',
+    badgeClass: 'bg-amber-100 text-amber-900',
+    summaryClass: 'text-amber-700'
+  },
+  strong: {
+    label: 'Strong',
+    buttonClass: 'border border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-400',
+    badgeClass: 'bg-emerald-100 text-emerald-900',
+    summaryClass: 'text-emerald-700'
+  }
+};
+
+const checklistPhaseLabels: Record<(typeof GAME_DAY_CHECKLIST)[number]['phase'], string> = {
+  '48_hours': '48 hours before',
+  '60_minutes': '60 minutes before',
+  post_round: 'After the round'
+};
+
+function classNames(...values: Array<string | false | null | undefined>): string {
+  return values.filter(Boolean).join(' ');
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function readinessLabel(score: number): string {
+  if (score >= 85) {
+    return 'Dialed in';
+  }
+  if (score >= 70) {
+    return 'Competitive';
+  }
+  if (score >= 50) {
+    return 'Building range';
+  }
+  return 'Early reps';
+}
+
+function countDrillRatings(ratings: readonly (DrillRating | null)[]): Record<DrillRating, number> {
+  return ratings.reduce(
+    (result, rating) => {
+      if (rating) {
+        result[rating] += 1;
+      }
+      return result;
+    },
+    {
+      needs_work: 0,
+      solid: 0,
+      strong: 0
+    }
+  );
+}
+
+export default function HomePage() {
+  const [progress, setProgress] = useState<InterviewPrepProgress>(() => createInitialInterviewProgress());
+  const [hydrated, setHydrated] = useState(false);
+  const [activeTab, setActiveTab] = useState<InterviewTab>('cockpit');
+  const [selectedFamily, setSelectedFamily] = useState<InterviewSourceFamily>('lp');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryFilter>('all');
+  const [selectedCompetency, setSelectedCompetency] = useState<CompetencyFilter>('all');
+
+  const [frameworkIndex, setFrameworkIndex] = useState(0);
+  const [showFrameworkAnswer, setShowFrameworkAnswer] = useState(false);
+
+  const [drillLength, setDrillLength] = useState<(typeof drillLengthOptions)[number]>(5);
+  const [drillQuestions, setDrillQuestions] = useState<InterviewQuestion[]>([]);
+  const [drillRatings, setDrillRatings] = useState<Array<DrillRating | null>>([]);
+  const [drillIndex, setDrillIndex] = useState(0);
+  const [drillRevealed, setDrillRevealed] = useState(false);
+  const [drillRating, setDrillRating] = useState<DrillRating | null>(null);
+  const [drillFinished, setDrillFinished] = useState(false);
+
+  const [storyDraft, setStoryDraft] = useState<StoryDraft>(() => createEmptyStoryDraft());
+  const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(INTERVIEW_STORAGE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        const safe = coerceInterviewProgress(parsed);
+
+        if (safe) {
+          setProgress(safe);
+        }
+      } catch {
+        window.localStorage.removeItem(INTERVIEW_STORAGE_KEY);
+      }
+    }
+
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(INTERVIEW_STORAGE_KEY, JSON.stringify(progress));
+  }, [hydrated, progress]);
+
+  useEffect(() => {
+    if (selectedCategoryId === 'all') {
+      return;
+    }
+
+    const categoriesInFamily = getQuestionCategoriesByFamily(selectedFamily);
+    if (!categoriesInFamily.some((category) => category.id === selectedCategoryId)) {
+      setSelectedCategoryId('all');
+    }
+  }, [selectedCategoryId, selectedFamily]);
+
+  useEffect(() => {
+    setFrameworkIndex(0);
+    setShowFrameworkAnswer(false);
+    setDrillQuestions([]);
+    setDrillRatings([]);
+    setDrillIndex(0);
+    setDrillRevealed(false);
+    setDrillRating(null);
+    setDrillFinished(false);
+  }, [selectedCategoryId, selectedCompetency, selectedFamily]);
+
+  const selectedFamilyCategories = useMemo(() => getQuestionCategoriesByFamily(selectedFamily), [selectedFamily]);
+  const selectedCategory = useMemo(
+    () =>
+      selectedCategoryId === 'all'
+        ? null
+        : selectedFamilyCategories.find((category) => category.id === selectedCategoryId) ?? getQuestionCategoryById(selectedCategoryId),
+    [selectedCategoryId, selectedFamilyCategories]
+  );
+  const categoryGroups = useMemo(
+    () =>
+      amazonFamilies.map((family) => ({
+        family,
+        label: INTERVIEW_SOURCE_FAMILY_LABELS[family],
+        categories: getQuestionCategoriesByFamily(family)
+      })),
+    []
+  );
+  const filteredCompetencies = useMemo(
+    () => (selectedCompetency === 'all' ? INTERVIEW_COMPETENCIES.map((competency) => competency.id) : [selectedCompetency]),
+    [selectedCompetency]
+  );
+  const familyQuestions = useMemo(
+    () => INTERVIEW_QUESTIONS.filter((question) => question.sourceFamily === selectedFamily),
+    [selectedFamily]
+  );
+  const amazonFilteredQuestions = useMemo(
+    () =>
+      familyQuestions.filter((question) => (selectedCategoryId === 'all' ? true : question.sourceCategoryId === selectedCategoryId)),
+    [familyQuestions, selectedCategoryId]
+  );
+  const filteredQuestions = useMemo(
+    () => amazonFilteredQuestions.filter((question) => filteredCompetencies.includes(question.competency)),
+    [amazonFilteredQuestions, filteredCompetencies]
+  );
+
+  const filteredFrameworks = useMemo(
+    () => FRAMEWORK_CARDS.filter((card) => filteredCompetencies.includes(card.competency)),
+    [filteredCompetencies]
+  );
+
+  const currentFramework = filteredFrameworks.length
+    ? filteredFrameworks[(frameworkIndex + filteredFrameworks.length) % filteredFrameworks.length]
+    : null;
+
+  const currentFrameworkMastered = currentFramework ? progress.masteredCardIds.includes(currentFramework.id) : false;
+  const totalDrillReps = progress.drillHistory.length;
+  const totalPitchFields = Object.values(progress.pitch).filter((value) => value.trim().length > 0).length;
+
+  const readiness = useMemo(() => getOverallReadiness(progress), [progress]);
+  const weakestCompetencyId = useMemo(() => getWeakestCompetency(progress), [progress]);
+  const weakestCompetency = weakestCompetencyId ? getCompetencyById(weakestCompetencyId) : null;
+  const storyCoverage = useMemo(() => getStoryCoverage(progress), [progress]);
+  const storyCategoryCoverage = useMemo(() => getStoryCategoryCoverage(progress), [progress]);
+  const pitchPreview = useMemo(() => buildPitchPreview(progress.pitch), [progress.pitch]);
+  const liveStoryScore = useMemo(() => scoreStarStory(storyDraft), [storyDraft]);
+  const liveStoryTips = useMemo(() => buildStarCoachTips(storyDraft), [storyDraft]);
+  const liveStoryPressureTest = useMemo(() => buildStoryPressureTest(storyDraft), [storyDraft]);
+  const questionCountsByCategory = useMemo(
+    () =>
+      INTERVIEW_QUESTIONS.reduce(
+        (result, question) => {
+          result[question.sourceCategoryId] = (result[question.sourceCategoryId] ?? 0) + 1;
+          return result;
+        },
+        {} as Record<string, number>
+      ),
+    []
+  );
+  const amazonCoverageSummary = useMemo(() => {
+    const storyTaggedCategoryIds = new Set(
+      Object.entries(storyCategoryCoverage)
+        .filter(([, count]) => count > 0)
+        .map(([categoryId]) => categoryId)
+    );
+    const drilledCategoryIds = new Set(
+      progress.drillHistory
+        .map((entry) => entry.sourceCategoryId)
+        .filter((categoryId): categoryId is string => typeof categoryId === 'string' && categoryId.length > 0)
+    );
+    const coveredCategoryIds = new Set([...storyTaggedCategoryIds, ...drilledCategoryIds]);
+    const lpCategories = getQuestionCategoriesByFamily('lp');
+    const functionalCategories = getQuestionCategoriesByFamily('functional');
+
+    return {
+      lpCovered: lpCategories.filter((category) => coveredCategoryIds.has(category.id)).length,
+      lpTotal: lpCategories.length,
+      functionalCovered: functionalCategories.filter((category) => coveredCategoryIds.has(category.id)).length,
+      functionalTotal: functionalCategories.length,
+      managerPromptCount: INTERVIEW_QUESTIONS.filter((question) => question.managerOnly).length,
+      managerRepCount: progress.drillHistory.filter((entry) => entry.managerOnly).length
+    };
+  }, [progress.drillHistory, storyCategoryCoverage]);
+
+  const drillHasStarted = drillQuestions.length > 0;
+  const currentDrillQuestion = drillHasStarted && !drillFinished ? drillQuestions[drillIndex] : null;
+  const currentPromptSet = useMemo(
+    () => STAR_PROMPTS.filter((prompt) => prompt.competency === storyDraft.competency).slice(0, 3),
+    [storyDraft.competency]
+  );
+  const recentDrills = progress.drillHistory.slice(0, 5);
+  const recentStories = progress.stories.slice(0, 5);
+  const checklistByPhase = useMemo(
+    () =>
+      Object.entries(checklistPhaseLabels).map(([phase, label]) => ({
+        phase,
+        label,
+        items: GAME_DAY_CHECKLIST.filter((item) => item.phase === phase)
+      })),
+    []
+  );
+
+  const competencyCards = useMemo(
+    () =>
+      INTERVIEW_COMPETENCIES.map((competency) => {
+        const confidence = getCompetencyConfidence(progress, competency.id);
+        const storyCount = storyCoverage[competency.id];
+        const stat = progress.competencyStats[competency.id];
+
+        return {
+          ...competency,
+          confidence,
+          storyCount,
+          attempts: stat.attempted,
+          signal: clampPercent(Math.max(confidence, storyCount * 18))
+        };
+      }),
+    [progress, storyCoverage]
+  );
+
+  const nextMoves = useMemo(() => {
+    const moves: string[] = [];
+
+    if (progress.stories.length < 4) {
+      moves.push('Build a six-story STAR bank that covers leadership, conflict, failure, ownership, ambiguity, and impact.');
+    }
+    if (selectedCategory && (storyCategoryCoverage[selectedCategory.id] ?? 0) === 0) {
+      moves.push(`Write one bulletproof STAR story tagged to ${selectedCategory.label} so this focus area has reusable proof.`);
+    }
+    if (totalPitchFields < 4) {
+      moves.push('Tighten your opening pitch so "tell me about yourself" is ready without improvising.');
+    }
+    if (weakestCompetency) {
+      moves.push(`Run a focused drill on ${weakestCompetency.title.toLowerCase()} and add one story for that lane.`);
+    }
+    if (amazonCoverageSummary.lpCovered < amazonCoverageSummary.lpTotal / 2) {
+      moves.push('Broaden your Amazon coverage by touching more Leadership Principles instead of repeating the same few stories.');
+    }
+    if (progress.masteredCardIds.length < 5) {
+      moves.push('Master the core frameworks so answers stay structured even when you are under pressure.');
+    }
+    if (progress.checklistDoneIds.length < GAME_DAY_CHECKLIST.length / 2) {
+      moves.push('Finish the game-day checklist before your next live round so logistics never steal signal.');
+    }
+
+    return moves.slice(0, 4);
+  }, [amazonCoverageSummary, progress, selectedCategory, storyCategoryCoverage, totalPitchFields, weakestCompetency]);
+
+  const drillSummary = useMemo(() => countDrillRatings(drillRatings), [drillRatings]);
+
+  const startDrillSession = () => {
+    const count = Math.min(drillLength, Math.max(1, filteredQuestions.length));
+    const questions = pickDrillQuestions(filteredQuestions, count, filteredCompetencies);
+
+    setDrillQuestions(questions);
+    setDrillRatings(new Array(questions.length).fill(null));
+    setDrillIndex(0);
+    setDrillRevealed(false);
+    setDrillRating(null);
+    setDrillFinished(false);
+    setActiveTab('drills');
+  };
+
+  const revealCurrentDrill = () => {
+    if (!currentDrillQuestion) {
+      return;
+    }
+
+    setDrillRevealed(true);
+  };
+
+  const rateCurrentDrill = (rating: DrillRating) => {
+    if (!currentDrillQuestion || !drillRevealed || drillRating !== null) {
+      return;
+    }
+
+    setProgress((previous) => recordDrillResult(previous, currentDrillQuestion, rating, new Date()));
+    setDrillRatings((previous) => {
+      const next = [...previous];
+      next[drillIndex] = rating;
+      return next;
+    });
+    setDrillRating(rating);
+  };
+
+  const moveToNextDrill = () => {
+    if (drillRating === null) {
+      return;
+    }
+
+    const isLastQuestion = drillIndex >= drillQuestions.length - 1;
+
+    if (isLastQuestion) {
+      setDrillFinished(true);
+      return;
+    }
+
+    setDrillIndex((previous) => previous + 1);
+    setDrillRevealed(false);
+    setDrillRating(null);
+  };
+
+  const resetDrillSession = () => {
+    setDrillQuestions([]);
+    setDrillRatings([]);
+    setDrillIndex(0);
+    setDrillRevealed(false);
+    setDrillRating(null);
+    setDrillFinished(false);
+  };
+
+  const rotateFramework = (step: number) => {
+    if (!filteredFrameworks.length) {
+      return;
+    }
+
+    setFrameworkIndex((previous) => (previous + step + filteredFrameworks.length) % filteredFrameworks.length);
+    setShowFrameworkAnswer(false);
+  };
+
+  const toggleCurrentFramework = () => {
+    if (!currentFramework) {
+      return;
+    }
+
+    setProgress((previous) =>
+      toggleMasteredFramework(previous, currentFramework.id, !previous.masteredCardIds.includes(currentFramework.id), new Date())
+    );
+  };
+
+  const updatePitchField = (field: keyof InterviewPrepProgress['pitch'], value: string) => {
+    setProgress((previous) => updatePitchPack(previous, { [field]: value }, new Date()));
+  };
+
+  const updateStoryField = (field: EditableStoryField, value: string) => {
+    setStoryDraft((previous) => ({
+      ...previous,
+      [field]: value
+    }));
+  };
+
+  const toggleStoryCategoryTag = (categoryId: string) => {
+    setStoryDraft((previous) => {
+      const nextTags = previous.categoryTags.includes(categoryId)
+        ? previous.categoryTags.filter((tag) => tag !== categoryId)
+        : [...previous.categoryTags, categoryId];
+
+      return {
+        ...previous,
+        categoryTags: nextTags
+      };
+    });
+  };
+
+  const saveCurrentStory = () => {
+    const hasCoreContent = [storyDraft.title, storyDraft.situation, storyDraft.action, storyDraft.result].some(
+      (value) => value.trim().length > 0
+    );
+
+    if (!hasCoreContent) {
+      return;
+    }
+
+    const nextDraft: StoryDraft = {
+      ...storyDraft,
+      id: editingStoryId ?? storyDraft.id
+    };
+
+    setProgress((previous) => saveStarStory(previous, nextDraft, new Date()));
+    setEditingStoryId(null);
+    setStoryDraft(createEmptyStoryDraft(storyDraft.competency, selectedCategory ? [selectedCategory.id] : []));
+  };
+
+  const loadStoryForEdit = (storyId: string) => {
+    const story = progress.stories.find((entry) => entry.id === storyId);
+    if (!story) {
+      return;
+    }
+
+    setStoryDraft({
+      id: story.id,
+      competency: story.competency,
+      categoryTags: story.categoryTags,
+      title: story.title,
+      situation: story.situation,
+      task: story.task,
+      action: story.action,
+      result: story.result,
+      reflection: story.reflection
+    });
+    setEditingStoryId(story.id);
+    setActiveTab('star_lab');
+  };
+
+  const removeStory = (storyId: string) => {
+    setProgress((previous) => deleteStarStory(previous, storyId, new Date()));
+
+    if (editingStoryId === storyId) {
+      setEditingStoryId(null);
+      setStoryDraft(createEmptyStoryDraft(selectedCategory?.signalLane ?? 'storytelling', selectedCategory ? [selectedCategory.id] : []));
+    }
+  };
+
+  const startFreshStory = () => {
+    const competency =
+      selectedCompetency === 'all' ? selectedCategory?.signalLane ?? storyDraft.competency : selectedCompetency;
+    const categoryTags = selectedCategory ? [selectedCategory.id] : [];
+    setEditingStoryId(null);
+    setStoryDraft(createEmptyStoryDraft(competency, categoryTags));
+  };
+
+  const toggleChecklist = (itemId: string, done: boolean) => {
+    setProgress((previous) => toggleChecklistItem(previous, itemId, done, new Date()));
+  };
+
+  const logBarRaiserResult = (question: InterviewQuestion, rating: DrillRating) => {
+    setProgress((previous) => recordDrillResult(previous, question, rating, new Date()));
+  };
+
+  return (
+    <div className="space-y-6 pb-10 rise">
+      <header className="glass-panel rounded-[30px] border border-slate-200/70 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
+          <div className="space-y-5">
+            <div className="inline-flex items-center rounded-full border border-slate-300/70 bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-700">
+              Interview Command Center
+            </div>
+            <div className="space-y-3">
+              <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+                Amazon-first interview prep built around bulletproof stories, harsh scoring, and real answer reps.
+              </h1>
+              <p className="max-w-3xl text-base leading-7 text-slate-700">
+                Preserve the full question bank, drill by Leadership Principle or functional competency, record live answers,
+                get bar-raiser feedback on weak spots, and show up with a sharper operating rhythm than the average candidate.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Readiness</p>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <p className="text-3xl font-semibold text-slate-950">{readiness}%</p>
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                    {readinessLabel(readiness)}
+                  </span>
+                </div>
+              </article>
+              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">STAR Stories</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">{progress.stories.length}</p>
+                <p className="mt-1 text-sm text-slate-600">Saved and reusable for future loops</p>
+              </article>
+              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Drill Reps</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">{totalDrillReps}</p>
+                <p className="mt-1 text-sm text-slate-600">Logged mock answers and hard-scored reps</p>
+              </article>
+              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Prep Streak</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">{progress.streak}</p>
+                <p className="mt-1 text-sm text-slate-600">Days with deliberate prep</p>
+              </article>
+            </div>
+          </div>
+
+          <aside className="overflow-hidden rounded-[28px] bg-slate-950 p-5 text-slate-50 shadow-[0_18px_60px_rgba(15,23,42,0.28)]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">Loop Blueprint</p>
+                <h2 className="mt-2 text-2xl font-semibold">Know what each stage is testing.</h2>
+              </div>
+              <div className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/75">Operator mode</div>
+            </div>
+            <div className="mt-5 space-y-3">
+              {INTERVIEW_STAGES.map((stage, index) => (
+                <article key={stage.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-300/15 text-sm font-semibold text-cyan-100">
+                      0{index + 1}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white">{stage.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-white/72">{stage.detail}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </aside>
+        </div>
+      </header>
+
+      <section className="glass-panel rounded-[26px] border border-slate-200/70 p-5">
+        <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Amazon taxonomy</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Use LPs and functional competencies as the main navigation.</h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {amazonFamilies.map((family) => (
+                <button
+                  key={family}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFamily(family);
+                    setSelectedCategoryId('all');
+                  }}
+                  className={classNames(
+                    'rounded-full px-4 py-2 text-sm font-semibold transition',
+                    selectedFamily === family
+                      ? 'bg-slate-950 text-white shadow-md'
+                      : 'border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400'
+                  )}
+                >
+                  {INTERVIEW_SOURCE_FAMILY_LABELS[family]}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {categoryGroups.map((group) => (
+                <div key={group.family} className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-950">{group.categories.length}</p>
+                  <p className="mt-1 text-sm text-slate-600">Canonical categories in the source bank</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Current category</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                {selectedCategory ? selectedCategory.label : `All ${INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}`}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {selectedCategory
+                  ? selectedCategory.description
+                  : `Browse the full ${INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily].toLowerCase()} bank, then narrow to one category when you want focused reps.`}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryId('all')}
+                className={classNames(
+                  'rounded-full px-4 py-2 text-sm font-semibold transition',
+                  selectedCategoryId === 'all'
+                    ? 'bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]'
+                    : 'border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50'
+                )}
+              >
+                All {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
+              </button>
+              {selectedFamilyCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryId(category.id)}
+                  className={classNames(
+                    'rounded-full px-4 py-2 text-sm font-semibold transition',
+                    selectedCategoryId === category.id
+                      ? 'bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]'
+                      : 'border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50'
+                  )}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Secondary coaching lane</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCompetency('all')}
+                  className={classNames(
+                    'rounded-full px-4 py-2 text-sm font-semibold transition',
+                    selectedCompetency === 'all'
+                      ? 'bg-slate-950 text-white shadow-md'
+                      : 'border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400'
+                  )}
+                >
+                  All lanes
+                </button>
+                {INTERVIEW_COMPETENCIES.map((competency) => (
+                  <button
+                    key={competency.id}
+                    type="button"
+                    onClick={() => setSelectedCompetency(competency.id)}
+                    className={classNames(
+                      'rounded-full px-4 py-2 text-sm font-semibold transition',
+                      selectedCompetency === competency.id
+                        ? 'bg-slate-950 text-white shadow-md'
+                        : 'border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400'
+                    )}
+                  >
+                    {competency.title}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Amazon categories drive question selection. Signal lanes stay available to tune coaching and story work.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <nav className="flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={classNames(
+              'rounded-2xl px-4 py-2 text-sm font-semibold transition',
+              activeTab === tab.id
+                ? 'bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]'
+                : 'border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'cockpit' ? (
+        <section className="grid gap-4 lg:grid-cols-[1.25fr_0.95fr]">
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Readiness map</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">Where your signal is strong and where it still leaks.</h2>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {progress.masteredCardIds.length}/{FRAMEWORK_CARDS.length} frameworks mastered
+              </div>
+            </div>
+            <div className="mt-5 space-y-4">
+              {competencyCards.map((competency) => (
+                <article key={competency.id} className="rounded-[22px] border border-slate-200 bg-white/75 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-slate-950">{competency.title}</h3>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                          {competency.confidence}% confidence
+                        </span>
+                      </div>
+                      <p className="text-sm leading-6 text-slate-700">{competency.description}</p>
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{competency.cue}</p>
+                    </div>
+                    <div className="grid min-w-[180px] gap-2 rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Stories</span>
+                        <span className="font-semibold text-slate-950">{competency.storyCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Drill reps</span>
+                        <span className="font-semibold text-slate-950">{competency.attempts}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Signal score</span>
+                        <span className="font-semibold text-slate-950">{competency.signal}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-500 to-amber-400 transition-all"
+                      style={{ width: `${competency.signal}%` }}
+                    />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <div className="space-y-4">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Amazon coverage</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Track breadth across LPs, functional areas, and manager prompts.</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">LP coverage</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {amazonCoverageSummary.lpCovered}/{amazonCoverageSummary.lpTotal}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">Leadership Principles touched by stories or reps</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Functional coverage</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {amazonCoverageSummary.functionalCovered}/{amazonCoverageSummary.functionalTotal}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">Functional categories touched by stories or reps</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Manager question coverage</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {amazonCoverageSummary.managerRepCount}/{amazonCoverageSummary.managerPromptCount}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">Manager-only prompts you have practiced so far</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current category pool</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {selectedCategory ? questionCountsByCategory[selectedCategory.id] ?? 0 : familyQuestions.length}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {selectedCategory ? `${selectedCategory.label} prompts available in the source bank` : 'Prompts available in the active family'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Recent category reps</p>
+                <div className="mt-3 space-y-3">
+                  {recentDrills.length ? (
+                    recentDrills.map((entry) => (
+                      <div key={`${entry.questionId}-${entry.date}`} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold text-white">
+                            {entry.sourceCategoryLabel ?? getInterviewQuestionById(entry.questionId)?.sourceCategoryLabel ?? getCompetencyById(entry.competency).title}
+                          </span>
+                          <span className={classNames('rounded-full px-2.5 py-1 text-xs font-semibold', ratingMeta[entry.rating].badgeClass)}>
+                            {ratingMeta[entry.rating].label}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/60">{formatDate(entry.date)}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/72">
+                      No category reps yet. Start a drill session to establish your Amazon baseline.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Next best moves</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Do the highest-leverage prep next.</h2>
+              <div className="mt-4 space-y-3">
+                {nextMoves.map((move) => (
+                  <div key={move} className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-sm leading-6 text-slate-700">
+                    {move}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-700">
+                {weakestCompetency
+                  ? `Current soft spot: ${weakestCompetency.title}. Use the filter above to run drills and write a fresh story in that lane.`
+                  : 'No weakest lane yet. Start with a mixed drill session to establish your baseline.'}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pitch workshop</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Build your opening answer.</h2>
+                </div>
+                <div className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                  {totalPitchFields}/4 sections filled
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Present</span>
+                  <textarea
+                    rows={2}
+                    value={progress.pitch.present}
+                    onChange={(event) => updatePitchField('present', event.target.value)}
+                    placeholder="Who you are now and the lane you operate in."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Proof</span>
+                  <textarea
+                    rows={2}
+                    value={progress.pitch.proof}
+                    onChange={(event) => updatePitchField('proof', event.target.value)}
+                    placeholder="Two proof points with real outcomes or scope."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Future</span>
+                  <textarea
+                    rows={2}
+                    value={progress.pitch.future}
+                    onChange={(event) => updatePitchField('future', event.target.value)}
+                    placeholder="What you want more of in your next role."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Why here</span>
+                  <textarea
+                    rows={2}
+                    value={progress.pitch.whyHere}
+                    onChange={(event) => updatePitchField('whyHere', event.target.value)}
+                    placeholder="Why this team or company is the right fit now."
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Live preview</p>
+                <p className="mt-3 text-base leading-7 text-white/88">
+                  {pitchPreview || 'Your tell-me-about-yourself answer will appear here as you fill the pitch sections.'}
+                </p>
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Recent reps</p>
+              <div className="mt-3 grid gap-3">
+                {recentDrills.length ? (
+                  recentDrills.map((entry) => (
+                    <div key={`${entry.questionId}-${entry.date}`} className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            {entry.sourceCategoryLabel ?? getInterviewQuestionById(entry.questionId)?.sourceCategoryLabel ?? getCompetencyById(entry.competency).title}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                            {getCompetencyById(entry.competency).title}
+                            {entry.managerOnly ? ' • Manager only' : ''}
+                          </p>
+                        </div>
+                        <span className={classNames('rounded-full px-2.5 py-1 text-xs font-semibold', ratingMeta[entry.rating].badgeClass)}>
+                          {ratingMeta[entry.rating].label}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{formatDate(entry.date)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                    No drill reps yet. Start a mock session to create your baseline.
+                  </div>
+                )}
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'star_lab' ? (
+        <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Story bank</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your reusable STAR inventory.</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={startFreshStory}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                >
+                  New story
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                  <p className="text-sm font-semibold text-slate-950">LP story coverage</p>
+                  <p className="mt-1 text-2xl font-semibold text-cyan-900">
+                    {getQuestionCategoriesByFamily('lp').filter((category) => (storyCategoryCoverage[category.id] ?? 0) > 0).length}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">Leadership Principles tagged by saved stories</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Functional story coverage</p>
+                  <p className="mt-1 text-2xl font-semibold text-cyan-900">
+                    {getQuestionCategoriesByFamily('functional').filter((category) => (storyCategoryCoverage[category.id] ?? 0) > 0).length}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">Functional areas tagged by saved stories</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Active category matches</p>
+                  <p className="mt-1 text-2xl font-semibold text-cyan-900">
+                    {selectedCategory ? progress.stories.filter((story) => story.categoryTags.includes(selectedCategory.id)).length : progress.stories.length}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                    {selectedCategory ? `${selectedCategory.label} stories ready for reuse` : 'Total saved stories'}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Current family question bank</p>
+                  <p className="mt-1 text-2xl font-semibold text-cyan-900">{familyQuestions.length}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">Prompts available in the active Amazon family</p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {recentStories.length ? (
+                  recentStories.map((story) => (
+                    <article key={story.id} className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-slate-950">{story.title}</h3>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                              {getCompetencyById(story.competency).title}
+                            </span>
+                            <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                              {scoreStarStory(story)}%
+                            </span>
+                          </div>
+                          {story.categoryTags.length ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {story.categoryTags.slice(0, 4).map((categoryId) => (
+                                <span key={categoryId} className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                                  {getQuestionCategoryById(categoryId).label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <p className="mt-2 text-sm leading-6 text-slate-700">{story.result || 'Add a measured result to sharpen this story.'}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">Updated {formatDate(story.updatedAt)}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadStoryForEdit(story.id)}
+                            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeStory(story.id)}
+                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-[24px] border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                    No stories saved yet. Start with one leadership or ownership story and make the Action section do most of the work.
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Prompt sparks</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Use a strong prompt when the blank page is slow.</h2>
+              <div className="mt-4 space-y-3">
+                {currentPromptSet.map((prompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    onClick={() => updateStoryField('title', prompt.prompt)}
+                    className="w-full rounded-[22px] border border-slate-200 bg-white/82 p-4 text-left text-sm leading-6 text-slate-700 transition hover:border-cyan-400"
+                  >
+                    {prompt.prompt}
+                  </button>
+                ))}
+              </div>
+            </article>
+          </div>
+
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">STAR builder</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  {editingStoryId ? 'Refine the story' : 'Build a new story'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">{liveStoryScore}% score</span>
+                <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                  {getCompetencyById(storyDraft.competency).title}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Story title</span>
+                <input
+                  type="text"
+                  value={storyDraft.title}
+                  onChange={(event) => updateStoryField('title', event.target.value)}
+                  placeholder="Launch turnaround in a difficult quarter"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Competency</span>
+                <select value={storyDraft.competency} onChange={(event) => updateStoryField('competency', event.target.value)}>
+                  {INTERVIEW_COMPETENCIES.map((competency) => (
+                    <option key={competency.id} value={competency.id}>
+                      {competency.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid gap-3">
+                <span className="text-sm font-medium text-slate-700">Amazon category tags</span>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {categoryGroups.map((group) => (
+                    <div key={group.family} className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {group.categories.map((category) => {
+                          const selected = storyDraft.categoryTags.includes(category.id);
+
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => toggleStoryCategoryTag(category.id)}
+                              className={classNames(
+                                'rounded-full px-3 py-2 text-xs font-semibold transition',
+                                selected
+                                  ? 'bg-slate-950 text-white'
+                                  : 'border border-slate-300 bg-white text-slate-700 hover:border-cyan-400'
+                              )}
+                            >
+                              {category.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm leading-6 text-slate-600">
+                  Tag each story to every Amazon category it can credibly answer. That is what powers coverage and focused practice.
+                </p>
+              </div>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Situation</span>
+                <textarea
+                  rows={3}
+                  value={storyDraft.situation}
+                  onChange={(event) => updateStoryField('situation', event.target.value)}
+                  placeholder="Set the stakes quickly. What was happening and why did it matter?"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Task</span>
+                <textarea
+                  rows={2}
+                  value={storyDraft.task}
+                  onChange={(event) => updateStoryField('task', event.target.value)}
+                  placeholder="What were you responsible for?"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Action</span>
+                <textarea
+                  rows={5}
+                  value={storyDraft.action}
+                  onChange={(event) => updateStoryField('action', event.target.value)}
+                  placeholder="What did you do, in sequence? This should be the longest section."
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Result</span>
+                <textarea
+                  rows={3}
+                  value={storyDraft.result}
+                  onChange={(event) => updateStoryField('result', event.target.value)}
+                  placeholder="What changed? Add metrics, speed, revenue, quality, or risk reduction."
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-700">Reflection</span>
+                <textarea
+                  rows={2}
+                  value={storyDraft.reflection}
+                  onChange={(event) => updateStoryField('reflection', event.target.value)}
+                  placeholder="What did you learn or change about how you operate?"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+              <div className="rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Coach notes</p>
+                <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                  {liveStoryTips.length ? (
+                    liveStoryTips.map((tip) => (
+                      <p key={tip} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        {tip}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      The structure is in good shape. Rehearse it aloud so the transitions sound conversational, not memorized.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">STAR reminder</p>
+                <div className="mt-3 grid gap-3 text-sm text-slate-700">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <span className="font-semibold text-slate-950">S:</span> Keep the setup brief.
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <span className="font-semibold text-slate-950">T:</span> Make ownership explicit.
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <span className="font-semibold text-slate-950">A:</span> Show judgment, tradeoffs, and sequencing.
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <span className="font-semibold text-slate-950">R:</span> Close with evidence, then the lesson.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bulletproof check</p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-950">Pressure-test the story before an interviewer does.</h3>
+                  </div>
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                    {liveStoryPressureTest.score}% pressure score
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {liveStoryPressureTest.vulnerabilities.length ? (
+                    liveStoryPressureTest.vulnerabilities.map((item) => (
+                      <div key={item} className="rounded-2xl bg-rose-50 p-4 text-sm leading-6 text-rose-950">
+                        {item}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+                      No obvious story leaks right now. Keep rehearsing the same story out loud so the structure sounds natural instead of memorized.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 rounded-[22px] bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Best upgrade moves</p>
+                  <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                    {liveStoryPressureTest.upgradeMoves.length ? (
+                      liveStoryPressureTest.upgradeMoves.map((move) => (
+                        <div key={move} className="rounded-2xl bg-white p-3">
+                          {move}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl bg-white p-3">
+                        Keep adding crisp proof points and repeating the story under time pressure.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Bar-raiser follow-ups</p>
+                <div className="mt-4 space-y-3 text-sm leading-6 text-white/88">
+                  {liveStoryPressureTest.pressureQuestions.map((question) => (
+                    <div key={question} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      {question}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">What already lands</p>
+                  <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                    {liveStoryPressureTest.strengths.length ? (
+                      liveStoryPressureTest.strengths.map((strength) => (
+                        <div key={strength} className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                          {strength}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                        Strong signals will show up here once the story has clearer ownership, proof, and decision quality.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={saveCurrentStory}
+                className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)]"
+              >
+                {editingStoryId ? 'Save story' : 'Add to story bank'}
+              </button>
+              <button
+                type="button"
+                onClick={startFreshStory}
+                className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800"
+              >
+                Clear draft
+              </button>
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === 'drills' ? (
+        <section className="space-y-4">
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mock drill engine</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">Practice questions that force clarity under pressure.</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Reveal the scorecard only after you answer out loud. Then rate yourself honestly.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="drill-length" className="text-sm font-medium text-slate-700">
+                  Questions
+                </label>
+                <select
+                  id="drill-length"
+                  value={drillLength}
+                  onChange={(event) => setDrillLength(Number(event.target.value) as (typeof drillLengthOptions)[number])}
+                  className="min-w-[84px]"
+                >
+                  {drillLengthOptions.map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={startDrillSession}
+                  disabled={!filteredQuestions.length}
+                  className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Start session
+                </button>
+                {drillHasStarted ? (
+                  <button
+                    type="button"
+                    onClick={resetDrillSession}
+                    className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800"
+                  >
+                    Reset
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Available prompts</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{filteredQuestions.length}</p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Strong ratings</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{progress.drillHistory.filter((entry) => entry.rating === 'strong').length}</p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current focus</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {selectedCategory ? selectedCategory.label : INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {selectedCompetency === 'all' ? 'All coaching lanes' : getCompetencyById(selectedCompetency).title}
+                </p>
+              </div>
+            </div>
+          </article>
+
+          {drillHasStarted && currentDrillQuestion ? (
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Question {drillIndex + 1} / {drillQuestions.length}
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">{currentDrillQuestion.title}</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                    {currentDrillQuestion.sourceCategoryLabel}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                    {getCompetencyById(currentDrillQuestion.competency).title}
+                  </span>
+                  {currentDrillQuestion.managerOnly ? (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Manager only</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[26px] bg-slate-950 p-6 text-white">
+                <p className="text-lg leading-8 text-white/92">{currentDrillQuestion.prompt}</p>
+              </div>
+
+              {!drillRevealed ? (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={revealCurrentDrill}
+                    className="rounded-full bg-cyan-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(14,116,144,0.22)]"
+                  >
+                    Reveal scorecard
+                  </button>
+                  <p className="text-sm text-slate-600">Answer aloud first, then use the rubric.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">A strong answer includes</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentDrillQuestion.listenFors.map((signal) => (
+                          <span key={signal} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-800">
+                            {signal}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                        <p className="font-semibold text-slate-950">Follow-up pressure test</p>
+                        <div className="mt-3 space-y-2">
+                          {currentDrillQuestion.followUps.map((followUp) => (
+                            <div key={followUp} className="rounded-2xl bg-white p-3">
+                              {followUp}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Self score</p>
+                      <div className="mt-3 grid gap-3">
+                        {(Object.keys(ratingMeta) as DrillRating[]).map((rating) => (
+                          <button
+                            key={rating}
+                            type="button"
+                            onClick={() => rateCurrentDrill(rating)}
+                            disabled={drillRating !== null}
+                            className={classNames(
+                              'rounded-2xl px-4 py-3 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60',
+                              ratingMeta[rating].buttonClass
+                            )}
+                          >
+                            {ratingMeta[rating].label}
+                          </button>
+                        ))}
+                      </div>
+                      {drillRating ? (
+                        <div className={classNames('mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-medium', ratingMeta[drillRating].summaryClass)}>
+                          Rated {ratingMeta[drillRating].label}. Move on only after you can explain why you chose it.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={moveToNextDrill}
+                      disabled={drillRating === null}
+                      className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {drillIndex >= drillQuestions.length - 1 ? 'Finish session' : 'Next question'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </article>
+          ) : null}
+
+          {drillFinished ? (
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Session recap</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your last round, scored honestly.</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={startDrillSession}
+                  className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800"
+                >
+                  Run it again
+                </button>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {(Object.keys(ratingMeta) as DrillRating[]).map((rating) => (
+                  <div key={rating} className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{ratingMeta[rating].label}</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-950">{drillSummary[rating]}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-sm leading-7 text-white/84">
+                  Best next move: rerun the same lane until the weakest answer feels structured without the scorecard, then switch filters and stress a different competency.
+                </p>
+              </div>
+            </article>
+          ) : null}
+        </section>
+      ) : null}
+
+      {activeTab === 'bar_raiser' ? <BarRaiserStudio questions={filteredQuestions} onLogResult={logBarRaiserResult} /> : null}
+
+      {activeTab === 'frameworks' ? (
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Framework trainer</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">Keep your answer structure stable under stress.</h2>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {filteredFrameworks.length ? `${frameworkIndex + 1} / ${filteredFrameworks.length}` : '0 cards'}
+              </div>
+            </div>
+
+            {currentFramework ? (
+              <>
+                <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                      {getCompetencyById(currentFramework.competency).title}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {currentFramework.title}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-2xl font-semibold leading-9 text-slate-950">{currentFramework.prompt}</p>
+                  {showFrameworkAnswer ? (
+                    <div className="mt-5 rounded-[22px] bg-slate-950 p-5 text-sm leading-7 text-white/90">{currentFramework.answer}</div>
+                  ) : (
+                    <div className="mt-5 rounded-[22px] border border-dashed border-slate-300 p-5 text-sm leading-7 text-slate-600">
+                      Reveal the answer after you try to state the structure from memory.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => rotateFramework(-1)}
+                    className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFrameworkAnswer((previous) => !previous)}
+                    className="rounded-full bg-cyan-700 px-5 py-3 text-sm font-semibold text-white"
+                  >
+                    {showFrameworkAnswer ? 'Hide answer' : 'Reveal answer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateFramework(1)}
+                    className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800"
+                  >
+                    Next
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleCurrentFramework}
+                    className={classNames(
+                      'rounded-full px-5 py-3 text-sm font-semibold',
+                      currentFrameworkMastered
+                        ? 'border border-slate-300 bg-white text-slate-800'
+                        : 'bg-slate-950 text-white'
+                    )}
+                  >
+                    {currentFrameworkMastered ? 'Unmark mastered' : 'Mark mastered'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 p-5 text-sm text-slate-600">
+                No frameworks in this filter. Switch lanes above to see the full library.
+              </div>
+            )}
+          </article>
+
+          <div className="space-y-4">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mastery snapshot</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Frameworks you can recall on demand.</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {FRAMEWORK_CARDS.map((card) => {
+                  const mastered = progress.masteredCardIds.includes(card.id);
+
+                  return (
+                    <div key={card.id} className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">{card.title}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                            {getCompetencyById(card.competency).title}
+                          </p>
+                        </div>
+                        <span
+                          className={classNames(
+                            'rounded-full px-2.5 py-1 text-xs font-semibold',
+                            mastered ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700'
+                          )}
+                        >
+                          {mastered ? 'Mastered' : 'In rotation'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">What elite answers do</p>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">They answer the question in the first sentence instead of circling it.</div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">They show judgment through choices and tradeoffs, not just activity.</div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">They land with evidence: a metric, a delta, a hard lesson, or a stronger operating standard.</div>
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'game_day' ? (
+        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="space-y-4">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Execution checklist</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Make the day predictable before it starts.</h2>
+              <div className="mt-5 space-y-4">
+                {checklistByPhase.map((group) => (
+                  <div key={group.phase} className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</p>
+                    <div className="mt-3 space-y-3">
+                      {group.items.map((item) => {
+                        const done = progress.checklistDoneIds.includes(item.id);
+
+                        return (
+                          <label
+                            key={item.id}
+                            className={classNames(
+                              'flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition',
+                              done ? 'border-emerald-200 bg-emerald-50/80' : 'border-slate-200 bg-white'
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={done}
+                              onChange={(event) => toggleChecklist(item.id, event.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300"
+                            />
+                            <span>
+                              <span className="block text-sm font-semibold text-slate-950">{item.title}</span>
+                              <span className="mt-1 block text-sm leading-6 text-slate-700">{item.detail}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+
+          <div className="space-y-4">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Questions to ask</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">Ask questions that reveal reality, not brochure copy.</h2>
+              <div className="mt-4 space-y-3">
+                {SMART_QUESTIONS.map((question) => (
+                  <div key={question.id} className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700">
+                        {question.group.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">{question.prompt}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Negotiation posture</p>
+              <div className="mt-4 space-y-3">
+                {NEGOTIATION_REMINDERS.map((item) => (
+                  <div key={item} className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Red flags</p>
+              <div className="mt-4 space-y-3">
+                {RED_FLAGS.map((item) => (
+                  <div key={item} className="rounded-[22px] border border-rose-200 bg-rose-50/80 p-4 text-sm leading-6 text-rose-950">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}

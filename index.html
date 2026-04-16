@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LifeOS</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <meta name="theme-color" content="#0b0f17" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">◼</div>
+      <div class="brandText">
+        <div class="brandName">LifeOS</div>
+        <div class="brandSub">Amazon: Sun–Wed • Personal week: Mon–Sun</div>
+      </div>
+    </div>
+
+    <div class="topActions">
+      <button id="quickAddBtn" class="btn btnPrimary" type="button">Quick Add</button>
+      <button id="themeBtn" class="btn btnGhost" type="button" aria-label="Toggle theme">Theme</button>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <a href="#/dashboard" data-route="dashboard" class="navItem">Dashboard</a>
+    <a href="#/log" data-route="log" class="navItem">Log</a>
+    <a href="#/money" data-route="money" class="navItem">Money</a>
+    <a href="#/settings" data-route="settings" class="navItem">Settings</a>
+  </nav>
+
+  <main id="main" class="main" role="main">
+    <div id="app" class="container" aria-live="polite"></div>
+  </main>
+
+  <!-- Quick Add Modal -->
+  <dialog id="quickAddModal" class="modal">
+    <form method="dialog" class="modalCard" id="quickAddForm">
+      <div class="modalHeader">
+        <div>
+          <div class="h2">Quick Add</div>
+          <div class="muted">Log time fast. Weekly metrics follow Mon–Sun.</div>
+        </div>
+        <button class="btn btnGhost" value="cancel" aria-label="Close">✕</button>
+      </div>
+
+      <div class="grid2">
+        <label class="field">
+          <span>Type</span>
+          <select id="qaType" required>
+            <option value="FELLOWSHIP">Fellowship</option>
+            <option value="STUDY">Study</option>
+            <option value="WORKOUT">Workout</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Minutes</span>
+          <input id="qaMinutes" type="number" min="1" step="1" placeholder="60" required />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Note (optional)</span>
+        <input id="qaNote" type="text" maxlength="140" placeholder="What did you do?" />
+      </label>
+
+      <div class="modalFooter">
+        <button class="btn" value="cancel" type="button" id="qaCancel">Cancel</button>
+        <button class="btn btnPrimary" value="ok" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
