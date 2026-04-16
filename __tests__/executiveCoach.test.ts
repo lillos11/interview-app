@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildExecutiveCoachReply } from "../lib/executiveCoach";
+import { AMAZON_PREP_DECK_STORIES } from "../lib/amazonPrepDeck";
 import {
   createEmptyStoryDraft,
   createInitialInterviewProgress,
@@ -47,6 +48,9 @@ describe("executive coach", () => {
     expect(reply.hardTruths.length).toBeGreaterThan(1);
     expect(reply.debriefReadout).toContain("debrief");
     expect(reply.repairPlan.length).toBeGreaterThan(0);
+    expect(reply.recommendedStories.length).toBeGreaterThanOrEqual(
+      AMAZON_PREP_DECK_STORIES.length,
+    );
     expect(reply.recommendedQuestion).not.toBeNull();
   });
 

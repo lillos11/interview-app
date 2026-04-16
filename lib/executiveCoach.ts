@@ -1,4 +1,5 @@
 import {
+  AMAZON_PREP_DECK_STORIES,
   AMAZON_PREP_DECK_PITCH_TEMPLATE,
   getPrepDeckStoriesForCategory,
   getPrepDeckStoriesForFamily,
@@ -287,26 +288,21 @@ function getRecommendedStories(
         scoreStoryMatch(right, context.selectedCategory, context.selectedCompetency) -
         scoreStoryMatch(left, context.selectedCategory, context.selectedCompetency),
     )
-    .filter(
-      (story) =>
-        scoreStoryMatch(
-          story,
-          context.selectedCategory,
-          context.selectedCompetency,
-        ) > 0,
-    )
-    .slice(0, 2)
     .map(buildSavedStoryReference);
 
-  const prepDeckStories = context.selectedCategory
+  const priorityPrepDeckStories = context.selectedCategory
     ? getPrepDeckStoriesForCategory(context.selectedCategory.id)
     : getPrepDeckStoriesForFamily(context.selectedFamily);
 
-  const prepDeckRefs = prepDeckStories
-    .slice(0, 2)
-    .map(buildPrepDeckStoryReference);
+  const remainingPrepDeckStories = AMAZON_PREP_DECK_STORIES.filter(
+    (story) => !priorityPrepDeckStories.some((candidate) => candidate.id === story.id),
+  );
 
-  return [...savedStories, ...prepDeckRefs].slice(0, 3);
+  const prepDeckRefs = [...priorityPrepDeckStories, ...remainingPrepDeckStories].map(
+    buildPrepDeckStoryReference,
+  );
+
+  return [...savedStories, ...prepDeckRefs];
 }
 
 function pickRecommendedQuestion(
