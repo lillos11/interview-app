@@ -19,3 +19,7 @@ tsconfig.tsbuildinfo
 .codex/
 .vscode/
 tsconfig.tsbuildinfo
+
+.codex/
+.vscode/
+tsconfig.tsbuildinfo
