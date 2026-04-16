@@ -58,6 +58,7 @@ export type CompetencyId = (typeof INTERVIEW_COMPETENCIES)[number]["id"];
 export type DrillRating = "needs_work" | "solid" | "strong";
 export type InterviewSourceFamily = "lp" | "functional";
 export type CompanyTrack = "amazon";
+export type InterviewerLensId = "hrbp" | "l6_ops" | "l7_bar_raiser";
 
 export interface InterviewQuestion {
   id: string;
@@ -152,6 +153,14 @@ export type BarRaiserVerdict =
   | "hire_signal"
   | "bar_raiser";
 
+export interface InterviewerLens {
+  id: InterviewerLensId;
+  label: string;
+  description: string;
+  demands: readonly string[];
+  targetDurationSeconds: number;
+}
+
 export interface AnswerReviewDimension {
   id: "structure" | "ownership" | "evidence" | "judgment" | "delivery";
   label: string;
@@ -164,6 +173,9 @@ export interface InterviewAnswerReview {
   rating: DrillRating;
   verdict: BarRaiserVerdict;
   verdictLabel: string;
+  interviewerLens: InterviewerLensId;
+  interviewerLabel: string;
+  interviewerExpectations: string[];
   summary: string;
   wordCount: number;
   fillerCount: number;
@@ -210,6 +222,42 @@ export interface StoryPressureTest {
   vulnerabilities: string[];
   pressureQuestions: string[];
   upgradeMoves: string[];
+}
+
+export interface StoryReviewDimension {
+  id: "clarity" | "ownership" | "action" | "evidence" | "reflection";
+  label: string;
+  score: number;
+  note: string;
+}
+
+export interface StoryReview {
+  score: number;
+  verdict: "not_ready" | "competitive" | "elite";
+  verdictLabel: string;
+  dimensions: StoryReviewDimension[];
+  strengths: string[];
+  misses: string[];
+  upgradeMoves: string[];
+}
+
+export interface EliteStoryWriterInput {
+  competency?: CompetencyId;
+  categoryTags?: string[];
+  titleHint?: string;
+  context?: string;
+  stakes?: string;
+  actions?: string;
+  result?: string;
+  lesson?: string;
+}
+
+export interface EliteStoryWriterDraft {
+  draft: StoryDraft;
+  headline: string;
+  missingPieces: string[];
+  interviewerWarnings: string[];
+  polishNotes: string[];
 }
 
 export interface InterviewPrepProgress {
@@ -259,6 +307,45 @@ export const NEGOTIATION_REMINDERS = [
   "Anchor on scope, impact, and market data rather than personal need.",
   "Ask about level, bonus, equity refresh, and review cadence before accepting the first package.",
   "Close loops in writing after the call so details do not drift.",
+] as const;
+
+export const INTERVIEWER_LENSES: readonly InterviewerLens[] = [
+  {
+    id: "hrbp",
+    label: "HRBP",
+    description:
+      "Tests trust, people judgment, coaching range, and whether your leadership style is healthy under pressure.",
+    demands: [
+      "Show how you handled the human dynamic, not just the task.",
+      "Make your coaching, trust-building, or conflict move explicit.",
+      "End with what changed for the people or team, not just the metric.",
+    ],
+    targetDurationSeconds: 90,
+  },
+  {
+    id: "l6_ops",
+    label: "L6 Ops",
+    description:
+      "Cares about execution, customer promise, pace, measurable outcomes, and whether your fixes become standard work.",
+    demands: [
+      "Lead with the number, stake, or miss.",
+      "Show the sequence of actions and the operating tradeoff you made.",
+      "Close with the metric and the repeatable mechanism that remained after you.",
+    ],
+    targetDurationSeconds: 90,
+  },
+  {
+    id: "l7_bar_raiser",
+    label: "L7 Bar Raiser",
+    description:
+      "Punishes vague answers. Wants judgment, tradeoffs, repeatability, and proof that your story would survive hard follow-up.",
+    demands: [
+      "Make the tradeoff and decision rule explicit.",
+      "Prove the result with a real delta or scope marker.",
+      "Show what became repeatable, what you learned, and why this should scale.",
+    ],
+    targetDurationSeconds: 120,
+  },
 ] as const;
 
 export const RED_FLAGS = [
@@ -755,6 +842,14 @@ const ADAPTABILITY_PATTERN =
   /\b(changed|pivot|replanned|learned|ramped|adapted|reset|course-corrected)\b/gi;
 const TECHNICAL_PATTERN =
   /\b(system|architecture|service|database|api|latency|throughput|scale|scaling|reliability|incident|pipeline)\b/gi;
+const PLACEHOLDER_PATTERN =
+  /\[(.*?)\]|\b(add|fill in|replace with|insert)\b/gi;
+const STANDARD_WORK_PATTERN =
+  /\b(standard work|playbook|repeatable|mechanism|cadence|workflow|sop|template|checklist|dashboard|operating rhythm|system)\b/gi;
+const PEOPLE_PATTERN =
+  /\b(coach|coached|develop|developed|mentor|feedback|trust|conflict|respect|people|team member|associate)\b/gi;
+const URGENCY_PATTERN =
+  /\b(deadline|pace|window|same day|urgent|truck|launch|recovery|at risk|high volume|peak)\b/gi;
 
 function toDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -1146,8 +1241,226 @@ function scoreDelivery(answer: string): AnswerReviewDimension {
   };
 }
 
-function sectionScore(text: string, minWords: number): number {
-  return Math.min(1, countWords(text) / minWords);
+function hasPlaceholder(text: string): boolean {
+  PLACEHOLDER_PATTERN.lastIndex = 0;
+  return PLACEHOLDER_PATTERN.test(text);
+}
+
+function ensureSentence(text: string): string {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function normalizeStoryField(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function extractSentenceLikeSegments(text: string): string[] {
+  return normalizeStoryField(text)
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function buildStoryVerdictLabel(score: number): StoryReview["verdictLabel"] {
+  if (score >= 85) {
+    return "Elite";
+  }
+  if (score >= 65) {
+    return "Competitive";
+  }
+  return "Not ready";
+}
+
+function inferStoryVerdict(score: number): StoryReview["verdict"] {
+  if (score >= 85) {
+    return "elite";
+  }
+  if (score >= 65) {
+    return "competitive";
+  }
+  return "not_ready";
+}
+
+function scoreStoryClarity(story: StoryDraft): StoryReviewDimension {
+  const setupWords = countWords(story.situation);
+  const taskWords = countWords(story.task);
+  let score = 16;
+
+  if (story.title.length >= 10) {
+    score += 14;
+  } else if (story.title.length >= 5) {
+    score += 7;
+  }
+  if (setupWords >= 10 && setupWords <= 35) {
+    score += 28;
+  } else if (setupWords >= 6) {
+    score += 16;
+  }
+  if (taskWords >= 6 && taskWords <= 24) {
+    score += 20;
+  } else if (taskWords >= 3) {
+    score += 10;
+  }
+  if (countMatches(`${story.situation} ${story.task}`, STAKES_PATTERN) >= 1) {
+    score += 12;
+  }
+  if (countWords(story.situation) > countWords(story.action) && setupWords > 28) {
+    score -= 14;
+  }
+  if (hasPlaceholder(`${story.title} ${story.situation} ${story.task}`)) {
+    score -= 16;
+  }
+
+  return {
+    id: "clarity",
+    label: "Clarity",
+    score: clampScore(score),
+    note:
+      score >= 75
+        ? "The setup is clear and fast enough for an interviewer to follow."
+        : "Tighten the title, stakes, and mandate so the story starts strong instead of warming up.",
+  };
+}
+
+function scoreStoryOwnership(story: StoryDraft): StoryReviewDimension {
+  const ownershipSignals = countMatches(
+    `${story.task} ${story.action}`,
+    OWNERSHIP_PATTERN,
+  );
+  let score = 18;
+
+  if (ownershipSignals >= 4) {
+    score += 34;
+  } else if (ownershipSignals >= 2) {
+    score += 24;
+  } else if (ownershipSignals >= 1) {
+    score += 12;
+  }
+  if (/\b(i (?:needed|decided|chose|led|owned|built|created|reset|coached|escalated|aligned|standardized))\b/i.test(
+    `${story.task} ${story.action}`,
+  )) {
+    score += 24;
+  }
+  if (countMatches(`${story.task} ${story.action}`, TEAM_PATTERN) > ownershipSignals * 2) {
+    score -= 12;
+  }
+  if (hasPlaceholder(`${story.task} ${story.action}`)) {
+    score -= 16;
+  }
+
+  return {
+    id: "ownership",
+    label: "Ownership",
+    score: clampScore(score),
+    note:
+      score >= 75
+        ? "Your role is explicit enough that the interviewer can see what you personally drove."
+        : 'Push harder on "I": what you decided, changed, escalated, or taught should be impossible to miss.',
+  };
+}
+
+function scoreStoryAction(story: StoryDraft): StoryReviewDimension {
+  const actionWords = countWords(story.action);
+  let score = 12;
+
+  if (actionWords >= 28) {
+    score += 30;
+  } else if (actionWords >= 18) {
+    score += 20;
+  } else if (actionWords >= 10) {
+    score += 10;
+  }
+  if (countMatches(story.action, STRUCTURE_PATTERN) >= 1) {
+    score += 12;
+  }
+  if (countMatches(story.action, TRADEOFF_PATTERN) >= 1) {
+    score += 18;
+  }
+  if (countMatches(story.action, ALIGNMENT_PATTERN) >= 1) {
+    score += 10;
+  }
+  if (hasPlaceholder(story.action)) {
+    score -= 18;
+  }
+
+  return {
+    id: "action",
+    label: "Action",
+    score: clampScore(score),
+    note:
+      score >= 75
+        ? "The action sequence shows judgment instead of reading like a summary."
+        : "Add the sequence, the tradeoff, and the alignment move. Action should be the longest, smartest part.",
+  };
+}
+
+function scoreStoryEvidence(story: StoryDraft): StoryReviewDimension {
+  let score = 12;
+
+  if (hasMetric(story.result)) {
+    score += 34;
+  }
+  if (countMatches(story.result, OUTCOME_PATTERN) >= 1) {
+    score += 16;
+  }
+  if (
+    /\b(from\b.+\bto\b|reduced|increased|cut|grew|saved|avoided|improved)\b/i.test(
+      story.result,
+    )
+  ) {
+    score += 16;
+  }
+  if (countMatches(`${story.result} ${story.reflection}`, STANDARD_WORK_PATTERN) >= 1) {
+    score += 12;
+  }
+  if (hasPlaceholder(story.result)) {
+    score -= 22;
+  }
+
+  return {
+    id: "evidence",
+    label: "Evidence",
+    score: clampScore(score),
+    note:
+      score >= 75
+        ? "The result is proving the story with real outcomes and repeatability."
+        : "Add a measurable result and show what changed in the process after the win or miss.",
+  };
+}
+
+function scoreStoryReflection(story: StoryDraft): StoryReviewDimension {
+  let score = 10;
+
+  if (countWords(story.reflection) >= 8) {
+    score += 34;
+  } else if (countWords(story.reflection) >= 4) {
+    score += 20;
+  }
+  if (countMatches(story.reflection, LESSON_PATTERN) >= 1) {
+    score += 18;
+  }
+  if (countMatches(`${story.result} ${story.reflection}`, STANDARD_WORK_PATTERN) >= 1) {
+    score += 12;
+  }
+  if (hasPlaceholder(story.reflection)) {
+    score -= 18;
+  }
+
+  return {
+    id: "reflection",
+    label: "Reflection",
+    score: clampScore(score),
+    note:
+      score >= 72
+        ? "The lesson gives the story a more senior signal."
+        : "Finish with the lesson or new standard work so the story shows growth, not just activity.",
+  };
 }
 
 function sanitizeStoryDraft(input: Partial<StoryDraft>): StoryDraft {
@@ -1231,6 +1544,15 @@ export function getCompetencyById(
   );
 }
 
+export function getInterviewerLensById(
+  interviewerLensId: InterviewerLensId,
+): InterviewerLens {
+  return (
+    INTERVIEWER_LENSES.find((lens) => lens.id === interviewerLensId) ??
+    INTERVIEWER_LENSES[INTERVIEWER_LENSES.length - 1]
+  );
+}
+
 export function createEmptyStoryDraft(
   competency: CompetencyId = "storytelling",
   categoryTags: string[] = [],
@@ -1249,31 +1571,271 @@ export function createEmptyStoryDraft(
   };
 }
 
-export function scoreStarStory(story: Partial<StoryDraft>): number {
+export function reviewStarStory(story: Partial<StoryDraft>): StoryReview {
   const safe = sanitizeStoryDraft(story);
-  const titleScore =
-    safe.title.length >= 8 ? 0.08 : safe.title.length >= 1 ? 0.04 : 0;
-  const situationScore = 0.17 * sectionScore(safe.situation, 14);
-  const taskScore = 0.13 * sectionScore(safe.task, 8);
-  const actionScore = 0.33 * sectionScore(safe.action, 24);
-  const resultScore = 0.21 * sectionScore(safe.result, 12);
-  const reflectionScore = 0.08 * sectionScore(safe.reflection, 8);
-  const metricBonus = hasMetric(safe.result) ? 0.08 : 0;
+  const dimensions = [
+    scoreStoryClarity(safe),
+    scoreStoryOwnership(safe),
+    scoreStoryAction(safe),
+    scoreStoryEvidence(safe),
+    scoreStoryReflection(safe),
+  ];
+  const score = clampScore(
+    dimensions.reduce((sum, dimension) => {
+      const weights: Record<StoryReviewDimension["id"], number> = {
+        clarity: 0.2,
+        ownership: 0.2,
+        action: 0.28,
+        evidence: 0.22,
+        reflection: 0.1,
+      };
 
-  return Math.round(
-    (titleScore +
-      situationScore +
-      taskScore +
-      actionScore +
-      resultScore +
-      reflectionScore +
-      metricBonus) *
-      100,
+      return sum + dimension.score * weights[dimension.id];
+    }, 0) +
+      ([
+        safe.title,
+        safe.situation,
+        safe.task,
+        safe.action,
+        safe.result,
+        safe.reflection,
+      ].every((field) => field.length > 0)
+        ? 8
+        : 0) +
+      (safe.categoryTags.length > 0 ? 4 : 0) +
+      (!hasPlaceholder(
+        `${safe.title} ${safe.situation} ${safe.task} ${safe.action} ${safe.result} ${safe.reflection}`,
+      )
+        ? 4
+        : 0),
   );
+
+  const strengths: string[] = [];
+  const misses: string[] = [];
+  const upgradeMoves: string[] = [];
+
+  if (dimensions[0].score >= 75) {
+    strengths.push("The setup is clear enough to land quickly in an interview.");
+  } else {
+    misses.push(
+      "The opening still needs a sharper stake and mandate so the story starts with signal instead of scene-setting.",
+    );
+    upgradeMoves.push(
+      "Rewrite the first two sentences so they cover only the business risk and what you were responsible for.",
+    );
+  }
+
+  if (dimensions[1].score >= 75) {
+    strengths.push("Ownership is visible and credible.");
+  } else {
+    misses.push(
+      'Ownership is still too soft. A strong interviewer should hear "I decided," "I changed," or "I escalated" quickly.',
+    );
+    upgradeMoves.push(
+      'Replace weak team language with the two or three moves you personally drove.',
+    );
+  }
+
+  if (dimensions[2].score >= 75) {
+    strengths.push("The action section shows sequence and judgment.");
+  } else {
+    misses.push(
+      "The action section needs more decision quality, tradeoff logic, and sequence detail.",
+    );
+    upgradeMoves.push(
+      "Add one sentence on the tradeoff and one on the order of the actions you drove.",
+    );
+  }
+
+  if (dimensions[3].score >= 75) {
+    strengths.push("The result has enough proof to survive scrutiny.");
+  } else {
+    misses.push(
+      "The story still needs harder proof: a number, delta, scope marker, or standard-work change.",
+    );
+    upgradeMoves.push(
+      "End with a measurable result and what became repeatable afterward.",
+    );
+  }
+
+  if (dimensions[4].score >= 72) {
+    strengths.push("The reflection makes the story sound more senior.");
+  } else {
+    misses.push(
+      "The lesson is too thin. Without reflection, the story sounds finished but not learned from.",
+    );
+    upgradeMoves.push(
+      "Add one line on what changed in how you now lead, escalate, or inspect the work.",
+    );
+  }
+
+  if (!safe.categoryTags.length) {
+    misses.push(
+      "This story is not tagged to any Amazon category yet, which makes coverage tracking weaker than it should be.",
+    );
+  }
+
+  return {
+    score,
+    verdict: inferStoryVerdict(score),
+    verdictLabel: buildStoryVerdictLabel(score),
+    dimensions,
+    strengths: strengths.slice(0, 4),
+    misses: [...new Set(misses)].slice(0, 6),
+    upgradeMoves: [...new Set(upgradeMoves)].slice(0, 4),
+  };
+}
+
+export function scoreStarStory(story: Partial<StoryDraft>): number {
+  return reviewStarStory(story).score;
+}
+
+export function buildEliteStoryDraft(
+  input: EliteStoryWriterInput,
+): EliteStoryWriterDraft {
+  const competency = isCompetencyId(input.competency)
+    ? input.competency
+    : "storytelling";
+  const categoryTags = uniqueStrings(input.categoryTags).filter((categoryId) =>
+    isQuestionCategoryId(categoryId),
+  );
+  const titleHint =
+    typeof input.titleHint === "string" ? normalizeStoryField(input.titleHint) : "";
+  const context =
+    typeof input.context === "string" ? normalizeStoryField(input.context) : "";
+  const stakes =
+    typeof input.stakes === "string" ? normalizeStoryField(input.stakes) : "";
+  const actions =
+    typeof input.actions === "string" ? normalizeStoryField(input.actions) : "";
+  const result =
+    typeof input.result === "string" ? normalizeStoryField(input.result) : "";
+  const lesson =
+    typeof input.lesson === "string" ? normalizeStoryField(input.lesson) : "";
+
+  const contextSegments = extractSentenceLikeSegments(context);
+  const stakeSegments = extractSentenceLikeSegments(stakes);
+  const actionSegments = extractSentenceLikeSegments(actions);
+  const resultSegments = extractSentenceLikeSegments(result);
+  const lessonSegments = extractSentenceLikeSegments(lesson);
+
+  const situation =
+    [
+      ...contextSegments.slice(0, 2),
+      ...stakeSegments.filter(
+        (segment) =>
+          !/\b(i needed|i had to|my objective|my goal|i was responsible)\b/i.test(
+            segment,
+          ),
+      ),
+    ]
+      .slice(0, 2)
+      .map(ensureSentence)
+      .join(" ") ||
+    "Set the context in two sentences: what was happening, why it mattered, and what risk was real.";
+
+  const task =
+    stakeSegments.find((segment) =>
+      /\b(i needed|i had to|my objective|my goal|i was responsible)\b/i.test(
+        segment,
+      ),
+    ) ||
+    "I needed to [state the specific outcome you owned] without [state the main constraint or risk].";
+
+  const actionDraft =
+    actionSegments.map(ensureSentence).join(" ") ||
+    "First, I diagnosed the real bottleneck instead of reacting to the surface symptom. Then I chose the highest-leverage move, aligned the right people, and reset the operating rhythm so the fix would hold.";
+
+  const resultDraft =
+    resultSegments.map(ensureSentence).join(" ") ||
+    "This led to [insert metric or delta], improved [customer/team/business outcome], and changed the standard work by [insert what became repeatable].";
+
+  const reflectionDraft =
+    lessonSegments.map(ensureSentence).join(" ") ||
+    "Since then, I [insert what changed in how you lead, inspect, escalate, or coach] so the same miss does not repeat.";
+
+  const title =
+    titleHint ||
+    (contextSegments[0]
+      ? contextSegments[0].split(/\s+/).slice(0, 6).join(" ")
+      : "Story draft");
+
+  const draft = sanitizeStoryDraft({
+    competency,
+    categoryTags,
+    title,
+    situation,
+    task: ensureSentence(task),
+    action: actionDraft,
+    result: resultDraft,
+    reflection: reflectionDraft,
+  });
+
+  const missingPieces: string[] = [];
+  const interviewerWarnings: string[] = [];
+  const polishNotes: string[] = [];
+
+  if (!hasMetric(draft.result)) {
+    missingPieces.push(
+      "Add a real number, percentage, scope, or time delta so the result is provable.",
+    );
+  }
+  if (!countMatches(draft.action, TRADEOFF_PATTERN)) {
+    missingPieces.push(
+      "Spell out the hardest tradeoff or decision rule so the story sounds senior.",
+    );
+  }
+  if (!countMatches(`${draft.result} ${draft.reflection}`, STANDARD_WORK_PATTERN)) {
+    missingPieces.push(
+      "Close the story with the mechanism, standard work, or operating change that remained after you.",
+    );
+  }
+  if (hasPlaceholder(`${draft.task} ${draft.result} ${draft.reflection}`)) {
+    missingPieces.push(
+      "Replace the bracketed scaffolding with your exact facts before you rehearse this live.",
+    );
+  }
+
+  if (!countMatches(`${draft.task} ${draft.action}`, OWNERSHIP_PATTERN)) {
+    interviewerWarnings.push(
+      'A high-level interviewer will ask, "What did you personally do?" unless your ownership is clearer.',
+    );
+  }
+  if (!hasMetric(draft.result)) {
+    interviewerWarnings.push(
+      'A tough interviewer will ask, "What changed in a way another person could verify?"',
+    );
+  }
+  if (!countMatches(draft.action, TRADEOFF_PATTERN)) {
+    interviewerWarnings.push(
+      'Expect a follow-up like, "What tradeoff did you make, and why was that the right call?"',
+    );
+  }
+
+  polishNotes.push(
+    "Lead with the stake or number, not the backstory.",
+    "Keep Action longer than Situation.",
+    "End with the result and the lesson so the story sounds complete.",
+  );
+
+  const firstMetricMatch = draft.result.match(
+    /\b(\d+%|\$?\d[\d,.]*|hours?\b|days?\b|weeks?\b|months?\b|years?\b|users?\b|customers?\b)\b/i,
+  );
+  const headline = firstMetricMatch
+    ? `${draft.title}: anchored by ${firstMetricMatch[0]}`
+    : `${draft.title}: needs one hard proof point`;
+
+  return {
+    draft,
+    headline,
+    missingPieces: [...new Set(missingPieces)].slice(0, 4),
+    interviewerWarnings: [...new Set(interviewerWarnings)].slice(0, 4),
+    polishNotes: polishNotes.slice(0, 3),
+  };
 }
 
 export function buildStarCoachTips(story: Partial<StoryDraft>): string[] {
   const safe = sanitizeStoryDraft(story);
+  const review = reviewStarStory(safe);
   const tips: string[] = [];
 
   if (safe.title.length < 8) {
@@ -1315,17 +1877,23 @@ export function buildStarCoachTips(story: Partial<StoryDraft>): string[] {
     );
   }
 
-  return tips.slice(0, 4);
+  if (review.score < 70) {
+    tips.push(...review.upgradeMoves.slice(0, 2));
+  }
+
+  return [...new Set(tips)].slice(0, 4);
 }
 
 export function reviewInterviewAnswer(
   question: InterviewQuestion,
   answer: string,
+  interviewerLensId: InterviewerLensId = "l7_bar_raiser",
 ): InterviewAnswerReview {
   const normalizedAnswer = answer.trim();
   const wordCount = countWords(normalizedAnswer);
   const fillerCount = countMatches(normalizedAnswer, FILLER_PATTERN);
   const metricsCount = countMetrics(normalizedAnswer);
+  const interviewerLens = getInterviewerLensById(interviewerLensId);
 
   const dimensions = [
     scoreStructure(normalizedAnswer),
@@ -1335,7 +1903,7 @@ export function reviewInterviewAnswer(
     scoreDelivery(normalizedAnswer),
   ];
 
-  const score = clampScore(
+  let score = clampScore(
     dimensions.reduce((sum, dimension) => {
       const weights: Record<AnswerReviewDimension["id"], number> = {
         structure: 0.24,
@@ -1348,7 +1916,6 @@ export function reviewInterviewAnswer(
       return sum + dimension.score * weights[dimension.id];
     }, 0),
   );
-  const verdict = inferVerdict(score);
   const strengths: string[] = [];
   const misses: string[] = [];
   const followUps = [...question.followUps];
@@ -1518,6 +2085,81 @@ export function reviewInterviewAnswer(
     );
   }
 
+  if (interviewerLens.id === "hrbp") {
+    if (countMatches(normalizedAnswer, PEOPLE_PATTERN) >= 1) {
+      strengths.push(
+        "This answer includes the people dynamic, which matters in an HRBP-style interview.",
+      );
+    } else {
+      score = clampScore(score - 6);
+      misses.push(
+        "An HRBP interviewer will want the people dynamic: trust built, coaching move, conflict handled, or the leadership behavior others felt.",
+      );
+      followUps.push(
+        "How did the person or team experience your leadership in that moment?",
+      );
+      rewriteMoves.push(
+        "Add one sentence on the human dynamic: trust, feedback, coaching, conflict, or morale.",
+      );
+    }
+  }
+
+  if (interviewerLens.id === "l6_ops") {
+    if (metricsCount === 0) {
+      score = clampScore(score - 5);
+      misses.push(
+        "An L6 operator will expect a number early. Right now the answer is still too soft on measurable impact.",
+      );
+    }
+    if (!countMatches(normalizedAnswer, STANDARD_WORK_PATTERN)) {
+      score = clampScore(score - 4);
+      misses.push(
+        "An L6 interviewer will ask what became standard work or repeatable after the immediate fix.",
+      );
+      followUps.push(
+        "What mechanism, checklist, dashboard, or standard work remained after you?",
+      );
+    }
+    if (!countMatches(normalizedAnswer, URGENCY_PATTERN)) {
+      score = clampScore(score - 3);
+      misses.push(
+        "Execution pressure is still vague. A strong operations answer should make the window, deadline, or pace pressure visible.",
+      );
+    }
+  }
+
+  if (interviewerLens.id === "l7_bar_raiser") {
+    if (countMatches(normalizedAnswer, TRADEOFF_PATTERN) === 0) {
+      score = clampScore(score - 7);
+      misses.push(
+        "A bar raiser will not give you credit without hearing the tradeoff and why you chose that path.",
+      );
+      followUps.push(
+        "What option did you reject, and what risk did you knowingly accept?",
+      );
+    }
+    if (!countMatches(normalizedAnswer, STANDARD_WORK_PATTERN)) {
+      score = clampScore(score - 5);
+      misses.push(
+        "The answer still sounds like a one-time save. A bar raiser will ask what became repeatable after you.",
+      );
+      rewriteMoves.push(
+        "Add the mechanism, cadence, dashboard, SOP, or habit that outlasted the moment.",
+      );
+    }
+    if (countMatches(normalizedAnswer, LESSON_PATTERN) === 0) {
+      score = clampScore(score - 4);
+      misses.push(
+        "The lesson is not explicit enough. A high-level interviewer wants to hear how this changed your operating model.",
+      );
+      followUps.push(
+        "What changed in how you lead or inspect the work because of this experience?",
+      );
+    }
+  }
+
+  const verdict = inferVerdict(score);
+
   const summary =
     verdict === "bar_raiser"
       ? "This clears a high bar. The answer is specific, owned, and backed by proof."
@@ -1532,6 +2174,9 @@ export function reviewInterviewAnswer(
     rating: getReviewRating(score),
     verdict,
     verdictLabel: getVerdictLabel(verdict),
+    interviewerLens: interviewerLens.id,
+    interviewerLabel: interviewerLens.label,
+    interviewerExpectations: [...interviewerLens.demands],
     summary,
     wordCount,
     fillerCount,

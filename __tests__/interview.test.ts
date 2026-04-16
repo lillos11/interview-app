@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildEliteStoryDraft,
   buildStoryPressureTest,
   coerceInterviewProgress,
   createInitialInterviewProgress,
@@ -15,6 +16,7 @@ import {
   recordBarRaiserReview,
   recordDrillResult,
   reviewInterviewAnswer,
+  reviewStarStory,
   saveStarStory,
   scoreStarStory,
   toggleChecklistItem,
@@ -366,6 +368,52 @@ describe("interview prep helpers", () => {
     });
   });
 
+  it("caps story scores at 100 and returns a detailed review", () => {
+    const story = {
+      competency: "leadership" as const,
+      categoryTags: ["deliver-results", "ownership"],
+      title: "Saved a failing peak shift",
+      situation:
+        "Peak volume hit all at once and the team was at risk of missing customer promise within the hour.",
+      task:
+        "I needed to recover the flow without creating a safety issue or starving the rest of the building.",
+      action:
+        "First, I checked the real bottleneck instead of reacting to the loudest symptom. Then I moved labor, escalated the equipment issue, and reset the monitoring cadence so we could stabilize the floor before the backlog crossed the shutdown threshold.",
+      result:
+        "We recovered 3,000 units, kept the backlog under the shutdown point, and documented a repeatable watch-point playbook for future peak shifts.",
+      reflection:
+        "Since then, I act earlier on watch points and build the escalation path into shift handoff so the next leader is not starting cold.",
+    };
+
+    const review = reviewStarStory(story);
+
+    expect(scoreStarStory(story)).toBeLessThanOrEqual(100);
+    expect(review.score).toBeLessThanOrEqual(100);
+    expect(review.dimensions).toHaveLength(5);
+    expect(review.verdict).not.toBe("not_ready");
+  });
+
+  it("builds an elite story draft from raw notes without inventing proof", () => {
+    const suggestion = buildEliteStoryDraft({
+      competency: "ownership",
+      categoryTags: ["ownership", "deliver-results"],
+      titleHint: "Prime window recovery",
+      context:
+        "Volume hit at once during Prime week and the floor was close to missing truck windows.",
+      stakes:
+        "I needed to recover the at-risk work without creating a new bottleneck.",
+      actions:
+        "I re-read staffing, moved support from a safe area, and set a tighter recovery cadence with the leads.",
+      result: "",
+      lesson: "Since then I front-load the pacing check at the start of the shift.",
+    });
+
+    expect(suggestion.draft.title).toBe("Prime window recovery");
+    expect(suggestion.draft.task).toContain("I needed to recover");
+    expect(suggestion.draft.result).toContain("[insert metric or delta]");
+    expect(suggestion.missingPieces.length).toBeGreaterThan(0);
+  });
+
   it("grades a strong answer with a hire-level signal", () => {
     const question =
       INTERVIEW_QUESTIONS.find(
@@ -385,6 +433,29 @@ describe("interview prep helpers", () => {
     expect(review.rating).not.toBe("needs_work");
     expect(review.metricsCount).toBeGreaterThan(0);
     expect(review.strengths.length).toBeGreaterThan(0);
+  });
+
+  it("gets stricter under the bar-raiser lens", () => {
+    const question =
+      INTERVIEW_QUESTIONS.find(
+        (entry) => entry.sourceCategoryId === "deliver-results",
+      ) ?? INTERVIEW_QUESTIONS[0];
+    const answer = [
+      "I had to recover a high-risk operational miss before customer promise broke.",
+      "I moved support and kept the work flowing.",
+      "We got through the shift and performance improved.",
+    ].join(" ");
+
+    const opsReview = reviewInterviewAnswer(question, answer, "l6_ops");
+    const barRaiserReview = reviewInterviewAnswer(
+      question,
+      answer,
+      "l7_bar_raiser",
+    );
+
+    expect(barRaiserReview.score).toBeLessThanOrEqual(opsReview.score);
+    expect(barRaiserReview.interviewerLabel).toBe("L7 Bar Raiser");
+    expect(barRaiserReview.interviewerExpectations.length).toBeGreaterThan(0);
   });
 
   it("flags weak answers that lack proof and ownership", () => {

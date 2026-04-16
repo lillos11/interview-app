@@ -15,6 +15,7 @@ import {
   getPrepDeckStoryById,
 } from "@/lib/amazonPrepDeck";
 import {
+  buildEliteStoryDraft,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -43,8 +44,8 @@ import {
   recordBarRaiserReview,
   recordDrillResult,
   RED_FLAGS,
+  reviewStarStory,
   saveStarStory,
-  scoreStarStory,
   toggleChecklistItem,
   updatePitchPack,
   type CompetencyId,
@@ -74,6 +75,13 @@ type EditableStoryField =
   | "action"
   | "result"
   | "reflection";
+type StoryWriterField =
+  | "titleHint"
+  | "context"
+  | "stakes"
+  | "actions"
+  | "result"
+  | "lesson";
 
 const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "cockpit", label: "Cockpit" },
@@ -86,6 +94,17 @@ const tabs: Array<{ id: InterviewTab; label: string }> = [
 
 const drillLengthOptions = [3, 5, 8] as const;
 const amazonFamilies: InterviewSourceFamily[] = ["lp", "functional"];
+
+function createEmptyStoryWriterInput() {
+  return {
+    titleHint: "",
+    context: "",
+    stakes: "",
+    actions: "",
+    result: "",
+    lesson: "",
+  };
+}
 
 const ratingMeta: Record<
   DrillRating,
@@ -210,6 +229,9 @@ export default function HomePage() {
 
   const [storyDraft, setStoryDraft] = useState<StoryDraft>(() =>
     createEmptyStoryDraft(),
+  );
+  const [storyWriterInput, setStoryWriterInput] = useState(() =>
+    createEmptyStoryWriterInput(),
   );
   const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
 
@@ -353,8 +375,8 @@ export default function HomePage() {
     () => buildPitchPreview(progress.pitch),
     [progress.pitch],
   );
-  const liveStoryScore = useMemo(
-    () => scoreStarStory(storyDraft),
+  const liveStoryReview = useMemo(
+    () => reviewStarStory(storyDraft),
     [storyDraft],
   );
   const liveStoryTips = useMemo(
@@ -416,6 +438,26 @@ export default function HomePage() {
 
     return getPrepDeckStoriesForFamily(selectedFamily).slice(0, 4);
   }, [selectedCategory, selectedFamily, selectedPrepDeckRoute]);
+  const storyWriterSuggestion = useMemo(
+    () =>
+      buildEliteStoryDraft({
+        competency:
+          selectedCompetency === "all"
+            ? storyDraft.competency
+            : selectedCompetency,
+        categoryTags: selectedCategory
+          ? [selectedCategory.id]
+          : storyDraft.categoryTags,
+        ...storyWriterInput,
+      }),
+    [
+      selectedCategory,
+      selectedCompetency,
+      storyDraft.categoryTags,
+      storyDraft.competency,
+      storyWriterInput,
+    ],
+  );
   const checklistByPhase = useMemo(
     () =>
       Object.entries(checklistPhaseLabels).map(([phase, label]) => ({
@@ -621,6 +663,22 @@ export default function HomePage() {
       ...previous,
       [field]: value,
     }));
+  };
+
+  const updateStoryWriterField = (field: StoryWriterField, value: string) => {
+    setStoryWriterInput((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  const loadStoryWriterDraft = () => {
+    setEditingStoryId(null);
+    setStoryDraft(storyWriterSuggestion.draft);
+  };
+
+  const clearStoryWriter = () => {
+    setStoryWriterInput(createEmptyStoryWriterInput());
   };
 
   const toggleStoryCategoryTag = (categoryId: string) => {
@@ -1484,8 +1542,8 @@ export default function HomePage() {
                             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                               {getCompetencyById(story.competency).title}
                             </span>
-                            <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
-                              {scoreStarStory(story)}%
+                          <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                              {reviewStarStory(story).score}%
                             </span>
                           </div>
                           {story.categoryTags.length ? (
@@ -1647,6 +1705,185 @@ export default function HomePage() {
                 ))}
               </div>
             </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Elite story writer
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Drop in raw facts and let the app finish the STAR draft.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    This writer will scaffold missing parts, but it will not
+                    invent your facts. Bracketed text means you still need to
+                    replace that with something real before rehearsal.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadStoryWriterDraft}
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Load writer draft
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Title hint
+                  </span>
+                  <input
+                    type="text"
+                    value={storyWriterInput.titleHint}
+                    onChange={(event) =>
+                      updateStoryWriterField("titleHint", event.target.value)
+                    }
+                    placeholder="Floor rescue during peak"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Context and stakes
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={storyWriterInput.context}
+                    onChange={(event) =>
+                      updateStoryWriterField("context", event.target.value)
+                    }
+                    placeholder="What was happening, why it mattered, and what risk was real?"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Your exact task
+                  </span>
+                  <textarea
+                    rows={2}
+                    value={storyWriterInput.stakes}
+                    onChange={(event) =>
+                      updateStoryWriterField("stakes", event.target.value)
+                    }
+                    placeholder='Try "I needed to..." or "My objective was..."'
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Actions you took
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={storyWriterInput.actions}
+                    onChange={(event) =>
+                      updateStoryWriterField("actions", event.target.value)
+                    }
+                    placeholder="List the moves you made in sequence, including the tradeoff if there was one."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Result and proof
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={storyWriterInput.result}
+                    onChange={(event) =>
+                      updateStoryWriterField("result", event.target.value)
+                    }
+                    placeholder="Add the metric, delta, scope, or customer impact."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Lesson or standard work
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={storyWriterInput.lesson}
+                    onChange={(event) =>
+                      updateStoryWriterField("lesson", event.target.value)
+                    }
+                    placeholder="What changed in how you lead, inspect, coach, or escalate after this?"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={loadStoryWriterDraft}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                >
+                  Use this draft in builder
+                </button>
+                <button
+                  type="button"
+                  onClick={clearStoryWriter}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                >
+                  Clear writer
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                  Writer headline
+                </p>
+                <p className="mt-3 text-lg font-semibold text-white">
+                  {storyWriterSuggestion.headline}
+                </p>
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Missing pieces
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/88">
+                      {storyWriterSuggestion.missingPieces.length ? (
+                        storyWriterSuggestion.missingPieces.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-white/10 bg-white/5 p-3"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                          The writer has enough raw material to build a strong
+                          first draft. Tighten the language in the builder next.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      High-level interviewer warnings
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/88">
+                      {storyWriterSuggestion.interviewerWarnings.map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-3"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                      {storyWriterSuggestion.polishNotes.map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-3 text-cyan-100"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
           </div>
 
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
@@ -1661,7 +1898,7 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
-                  {liveStoryScore}% score
+                  {liveStoryReview.score}% score
                 </span>
                 <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
                   {getCompetencyById(storyDraft.competency).title}
@@ -1812,6 +2049,75 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Story scorecard
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                      Accurate story scoring, capped at 100.
+                    </h3>
+                  </div>
+                  <div className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                    {liveStoryReview.verdictLabel}
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 xl:grid-cols-5">
+                  {liveStoryReview.dimensions.map((dimension) => (
+                    <div
+                      key={dimension.id}
+                      className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-950">
+                          {dimension.label}
+                        </p>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {dimension.score}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-700">
+                        {dimension.note}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  <div className="rounded-[22px] bg-emerald-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-900">
+                      What already lands
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-emerald-950">
+                      {liveStoryReview.strengths.length ? (
+                        liveStoryReview.strengths.map((item) => (
+                          <div key={item} className="rounded-2xl bg-white p-3">
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl bg-white p-3">
+                          Strong signals will show up here as the story gets
+                          sharper and more specific.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] bg-rose-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-900">
+                      Interview risk
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-rose-950">
+                      {liveStoryReview.misses.map((item) => (
+                        <div key={item} className="rounded-2xl bg-white p-3">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-[24px] bg-slate-950 p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
                   Coach notes

@@ -11,9 +11,12 @@ import {
 
 import {
   getCompetencyById,
+  getInterviewerLensById,
+  INTERVIEWER_LENSES,
   reviewInterviewAnswer,
   type DrillRating,
   type InterviewAnswerReview,
+  type InterviewerLensId,
   type InterviewQuestion,
 } from "@/lib/interview";
 
@@ -164,6 +167,23 @@ function getRecordingErrorMessage(error: unknown): string {
   }
 }
 
+type MicrophoneStatus = "unknown" | "unsupported" | "prompt" | "granted" | "denied";
+
+function getMicrophoneStatusLabel(status: MicrophoneStatus): string {
+  switch (status) {
+    case "granted":
+      return "Permission granted";
+    case "denied":
+      return "Permission blocked";
+    case "prompt":
+      return "Permission needed";
+    case "unsupported":
+      return "Browser limitation";
+    default:
+      return "Not checked yet";
+  }
+}
+
 const ANSWER_DURATION_TARGETS = [60, 90, 120] as const;
 
 function getTimingFeedback(durationSeconds: number, targetSeconds: number) {
@@ -197,18 +217,22 @@ export default function BarRaiserStudio({
   questions,
   onLogReview,
 }: BarRaiserStudioProps) {
+  const [selectedLensId, setSelectedLensId] =
+    useState<InterviewerLensId>("l7_bar_raiser");
   const [selectedQuestionId, setSelectedQuestionId] = useState(
     questions[0]?.id ?? "",
   );
   const [answer, setAnswer] = useState("");
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [microphoneStatus, setMicrophoneStatus] =
+    useState<MicrophoneStatus>("unknown");
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [recordedAudioDownloadName, setRecordedAudioDownloadName] = useState(
     "bar-raiser-answer.webm",
   );
   const [isRecording, setIsRecording] = useState(false);
   const [isPreparingRecorder, setIsPreparingRecorder] = useState(false);
-  const [targetDurationSeconds, setTargetDurationSeconds] = useState(90);
+  const [targetDurationSeconds, setTargetDurationSeconds] = useState(120);
   const [lastTakeDurationSeconds, setLastTakeDurationSeconds] = useState<
     number | null
   >(null);
@@ -226,6 +250,10 @@ export default function BarRaiserStudio({
   const audioInputRef = useRef<HTMLInputElement | null>(null);
 
   const deferredAnswer = useDeferredValue(answer);
+  const selectedLens = useMemo(
+    () => getInterviewerLensById(selectedLensId),
+    [selectedLensId],
+  );
   const activeSelectedQuestionId = useMemo(() => {
     if (questions.some((question) => question.id === selectedQuestionId)) {
       return selectedQuestionId;
@@ -243,9 +271,9 @@ export default function BarRaiserStudio({
   const review = useMemo(
     () =>
       selectedQuestion && deferredAnswer.trim().length
-        ? reviewInterviewAnswer(selectedQuestion, deferredAnswer)
+        ? reviewInterviewAnswer(selectedQuestion, deferredAnswer, selectedLensId)
         : null,
-    [deferredAnswer, selectedQuestion],
+    [deferredAnswer, selectedLensId, selectedQuestion],
   );
   const reviewDurationSeconds = useMemo(() => {
     if (lastTakeDurationSeconds !== null) {
@@ -280,10 +308,45 @@ export default function BarRaiserStudio({
     typeof window !== "undefined" &&
     typeof navigator !== "undefined" &&
     "mediaDevices" in navigator &&
+    typeof navigator.mediaDevices?.getUserMedia === "function" &&
     typeof window.MediaRecorder !== "undefined";
   const speechRecognitionSupported =
     typeof window !== "undefined" &&
     Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const secureContext =
+    typeof window !== "undefined" ? window.isSecureContext : false;
+
+  useEffect(() => {
+    const refreshMicrophoneStatus = async () => {
+      if (!recordingSupported || !secureContext) {
+        setMicrophoneStatus("unsupported");
+        return;
+      }
+
+      if (!navigator.permissions?.query) {
+        setMicrophoneStatus("prompt");
+        return;
+      }
+
+      try {
+        const permission = await navigator.permissions.query({
+          name: "microphone" as PermissionName,
+        });
+
+        if (permission.state === "granted") {
+          setMicrophoneStatus("granted");
+        } else if (permission.state === "denied") {
+          setMicrophoneStatus("denied");
+        } else {
+          setMicrophoneStatus("prompt");
+        }
+      } catch {
+        setMicrophoneStatus("prompt");
+      }
+    };
+
+    void refreshMicrophoneStatus();
+  }, [recordingSupported, secureContext]);
 
   useEffect(() => {
     return () => {
@@ -317,6 +380,33 @@ export default function BarRaiserStudio({
   const stopMicrophone = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  };
+
+  const requestMicrophoneAccess = async () => {
+    if (!recordingSupported || !secureContext) {
+      setMicrophoneStatus("unsupported");
+      setRecordingError(
+        secureContext
+          ? "This browser cannot record audio here. Use Chrome or Safari on HTTPS."
+          : "Live recording needs HTTPS or localhost. Open the app from a secure origin, then try again.",
+      );
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicrophoneStatus("granted");
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (error) {
+      setMicrophoneStatus(
+        error instanceof DOMException &&
+          (error.name === "NotAllowedError" || error.name === "SecurityError")
+          ? "denied"
+          : "prompt",
+      );
+      setRecordingError(getRecordingErrorMessage(error));
+    }
   };
 
   const revokeRecordedAudioUrl = () => {
@@ -429,9 +519,12 @@ export default function BarRaiserStudio({
   };
 
   const startRecording = async () => {
-    if (!recordingSupported) {
+    if (!recordingSupported || !secureContext) {
+      setMicrophoneStatus("unsupported");
       setRecordingError(
-        "This browser does not expose live recording here. Use the audio upload fallback below or switch to Chrome or Safari over HTTPS.",
+        secureContext
+          ? "This browser does not expose live recording here. Use the audio upload fallback below or switch to Chrome or Safari over HTTPS."
+          : "Live recording needs HTTPS or localhost. Open the app from a secure origin, then try again.",
       );
       return;
     }
@@ -447,14 +540,21 @@ export default function BarRaiserStudio({
       revokeRecordedAudioUrl();
       setRecordedAudioDownloadName("bar-raiser-answer.webm");
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
+      setMicrophoneStatus("granted");
 
       const recorderOptions = getSupportedRecorderOptions();
       const recorder = recorderOptions
@@ -501,6 +601,12 @@ export default function BarRaiserStudio({
         startSpeechRecognition();
       }
     } catch (error) {
+      setMicrophoneStatus(
+        error instanceof DOMException &&
+          (error.name === "NotAllowedError" || error.name === "SecurityError")
+          ? "denied"
+          : "prompt",
+      );
       setRecordingError(getRecordingErrorMessage(error));
       stopMicrophone();
       stopTimer();
@@ -631,6 +737,50 @@ export default function BarRaiserStudio({
             </select>
           </label>
 
+          <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Interviewer lens
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Pick the interviewer you want to beat. The scorecard stays
+                  strict, but the follow-up pressure shifts with the lens.
+                </p>
+              </div>
+              <select
+                value={selectedLensId}
+                onChange={(event) => {
+                  const nextLensId = event.target.value as InterviewerLensId;
+                  setSelectedLensId(nextLensId);
+                  setTargetDurationSeconds(
+                    getInterviewerLensById(nextLensId).targetDurationSeconds,
+                  );
+                }}
+                className="min-w-[180px]"
+              >
+                {INTERVIEWER_LENSES.map((lens) => (
+                  <option key={lens.id} value={lens.id}>
+                    {lens.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {selectedLens.description}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedLens.demands.map((demand) => (
+                <span
+                  key={demand}
+                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                >
+                  {demand}
+                </span>
+              ))}
+            </div>
+          </div>
+
           {selectedQuestion ? (
             <div className="mt-4 space-y-4">
               <div className="rounded-[24px] bg-slate-950 p-5 text-white">
@@ -732,6 +882,14 @@ export default function BarRaiserStudio({
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
+              onClick={requestMicrophoneAccess}
+              disabled={isRecording || isPreparingRecorder}
+              className="rounded-full border border-cyan-300 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Enable microphone
+            </button>
+            <button
+              type="button"
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isPreparingRecorder}
               className={classNames(
@@ -778,9 +936,7 @@ export default function BarRaiserStudio({
                 Microphone
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                {recordingSupported
-                  ? "Ready for live takes"
-                  : "Use upload fallback"}
+                {getMicrophoneStatusLabel(microphoneStatus)}
               </p>
             </div>
             <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
@@ -798,15 +954,19 @@ export default function BarRaiserStudio({
                 Rating mode
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                Strict bar-raiser rubric
+                {selectedLens.label} pressure
               </p>
             </div>
           </div>
 
           <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/90 p-4 text-sm leading-6 text-slate-700">
             Live recording works best on localhost or HTTPS with microphone
-            permission enabled. If the browser blocks the mic, upload an audio
-            file and score the transcript manually.
+            permission enabled. Secure context:{" "}
+            <span className="font-semibold text-slate-950">
+              {secureContext ? "ready" : "not secure"}
+            </span>
+            . If the browser still blocks the mic, upload an audio file and
+            score the transcript manually.
           </div>
 
           {recordingError ? (
@@ -857,6 +1017,9 @@ export default function BarRaiserStudio({
               </h3>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
                 {review.summary}
+              </p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Reviewer lens: {review.interviewerLabel}
               </p>
             </div>
             <div
@@ -985,6 +1148,22 @@ export default function BarRaiserStudio({
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
             <div className="space-y-4">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  What this interviewer expects
+                </p>
+                <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                  {review.interviewerExpectations.map((expectation) => (
+                    <div
+                      key={expectation}
+                      className="rounded-2xl bg-cyan-50 p-3 text-cyan-950"
+                    >
+                      {expectation}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   What worked
