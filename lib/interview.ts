@@ -193,6 +193,9 @@ export interface InterviewAnswerReview {
   misses: string[];
   followUps: string[];
   rewriteMoves: string[];
+  brutalTruth: string;
+  debriefReadout: string;
+  repairPlan: string[];
 }
 
 export interface BarRaiserReviewRecord {
@@ -280,6 +283,9 @@ export interface StoryReview {
   strengths: string[];
   misses: string[];
   upgradeMoves: string[];
+  brutalTruth: string;
+  debriefReadout: string;
+  repairPlan: string[];
 }
 
 export interface EliteStoryWriterInput {
@@ -1127,6 +1133,201 @@ function getReviewRating(score: number): DrillRating {
   return "needs_work";
 }
 
+function getWeakestDimensionIds<
+  TDimension extends { id: string; score: number },
+>(dimensions: readonly TDimension[], count: number): string[] {
+  return [...dimensions]
+    .sort((left, right) => left.score - right.score)
+    .slice(0, count)
+    .map((dimension) => dimension.id);
+}
+
+function buildAnswerBrutalTruth(
+  verdict: BarRaiserVerdict,
+  misses: readonly string[],
+): string {
+  const primaryMiss =
+    misses[0] ?? "The answer is still too easy to doubt under pressure.";
+
+  switch (verdict) {
+    case "bar_raiser":
+      return `This is strong, but strong is not the same as safe. If you get sloppy on ownership or proof, this answer drops fast. ${primaryMiss}`;
+    case "hire_signal":
+      return `This can pass, but it is not yet the kind of answer that shuts down skepticism. ${primaryMiss}`;
+    case "borderline":
+      return `This sounds experienced, but it still reads as fragile. A skeptical interviewer could push this into a no-hire quickly. ${primaryMiss}`;
+    default:
+      return `If this were a real loop, I would not move you forward from this answer. ${primaryMiss}`;
+  }
+}
+
+function buildAnswerDebriefReadout(params: {
+  interviewerLabel: string;
+  verdict: BarRaiserVerdict;
+  question: InterviewQuestion;
+  dimensions: readonly AnswerReviewDimension[];
+  metricsCount: number;
+  fillerCount: number;
+  misses: readonly string[];
+}): string {
+  const weakestDimensions = getWeakestDimensionIds(params.dimensions, 2)
+    .map((dimensionId) =>
+      params.dimensions.find((dimension) => dimension.id === dimensionId)?.label,
+    )
+    .filter(Boolean)
+    .join(" and ");
+  const proofLine =
+    params.metricsCount > 0
+      ? `There was at least some measurable proof in the answer (${params.metricsCount} metric signal${params.metricsCount === 1 ? "" : "s"}).`
+      : "There was no hard proof in the answer, which makes the claim set hard to trust.";
+  const deliveryLine =
+    params.fillerCount > 0
+      ? `Delivery still had ${params.fillerCount} hedge or filler signal${params.fillerCount === 1 ? "" : "s"}, which weakens confidence.`
+      : "Delivery was reasonably clean.";
+
+  const verdictLine =
+    params.verdict === "bar_raiser"
+      ? "I would write this up as a strong hire-level answer."
+      : params.verdict === "hire_signal"
+        ? "I would write this up as passable but not especially calming."
+        : params.verdict === "borderline"
+          ? "I would write this up as mixed and vulnerable to follow-up."
+          : "I would write this up as below bar.";
+
+  return [
+    `${params.interviewerLabel} debrief: ${verdictLine}`,
+    `The answer targeted ${params.question.sourceCategoryLabel} but the weakest signals were ${weakestDimensions || "not clearly enough demonstrated"}.`,
+    proofLine,
+    deliveryLine,
+    params.misses[0] ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildAnswerRepairPlan(params: {
+  dimensions: readonly AnswerReviewDimension[];
+  misses: readonly string[];
+  rewriteMoves: readonly string[];
+  metricsCount: number;
+  wordCount: number;
+}): string[] {
+  const weakDimensionActions: Record<AnswerReviewDimension["id"], string> = {
+    structure:
+      "Rebuild the answer to four beats only: stake, mandate, action sequence, measured result.",
+    ownership:
+      'Replace vague team language with the exact calls you made, the push you gave, and the risk you owned.',
+    evidence:
+      "Add one hard number, one clear before/after delta, and one scope marker before you rerun this.",
+    judgment:
+      'Say the tradeoff out loud using the sentence frame "I chose X instead of Y because..."',
+    delivery:
+      "Cut hedge words, shorten the first pass, and rehearse until the answer lands in a clean 90 to 120 seconds.",
+  };
+
+  const repairPlan = getWeakestDimensionIds(params.dimensions, 3).map(
+    (dimensionId) =>
+      weakDimensionActions[dimensionId as AnswerReviewDimension["id"]],
+  );
+
+  if (params.metricsCount === 0) {
+    repairPlan.push(
+      "Do not rehearse this again until you decide which metric, delta, or risk reduction proves the result.",
+    );
+  }
+  if (params.wordCount < 55) {
+    repairPlan.push(
+      "Lengthen the answer by adding the actual decision point and the business consequence, not extra scene-setting.",
+    );
+  }
+
+  return [...new Set([...repairPlan, ...params.rewriteMoves, ...params.misses.slice(0, 2)])].slice(
+    0,
+    6,
+  );
+}
+
+function buildStoryBrutalTruth(
+  verdict: StoryReview["verdict"],
+  misses: readonly string[],
+): string {
+  const primaryMiss =
+    misses[0] ?? "The story is still not specific enough to carry real interview weight.";
+
+  switch (verdict) {
+    case "elite":
+      return `This story is strong enough to use, but only if you keep it crisp and owned. ${primaryMiss}`;
+    case "competitive":
+      return `This story is usable, but it is not bulletproof yet. ${primaryMiss}`;
+    default:
+      return `In its current form, this story is not interview-ready. ${primaryMiss}`;
+  }
+}
+
+function buildStoryDebriefReadout(params: {
+  verdict: StoryReview["verdict"];
+  story: StoryDraft;
+  dimensions: readonly StoryReviewDimension[];
+  misses: readonly string[];
+}): string {
+  const weakestDimensions = getWeakestDimensionIds(params.dimensions, 2)
+    .map((dimensionId) =>
+      params.dimensions.find((dimension) => dimension.id === dimensionId)?.label,
+    )
+    .filter(Boolean)
+    .join(" and ");
+  const verdictLine =
+    params.verdict === "elite"
+      ? "I would mark this story as strong supporting evidence."
+      : params.verdict === "competitive"
+        ? "I would mark this story as usable but still a little exposed."
+        : "I would not rely on this story in a high-bar loop yet.";
+
+  return [
+    `Debrief note on "${params.story.title || "Untitled story"}": ${verdictLine}`,
+    `The weakest signals are ${weakestDimensions || "still too vague to trust"}, which means the story can still wobble under follow-up.`,
+    params.misses[0] ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildStoryRepairPlan(params: {
+  dimensions: readonly StoryReviewDimension[];
+  misses: readonly string[];
+  upgradeMoves: readonly string[];
+  story: StoryDraft;
+}): string[] {
+  const weakDimensionActions: Record<StoryReviewDimension["id"], string> = {
+    clarity:
+      "Rewrite the opening so the first two sentences cover only the stake, the risk, and your mandate.",
+    ownership:
+      'Insert explicit ownership language: "I decided," "I changed," "I escalated," or "I reset."',
+    action:
+      "Expand the action sequence until an interviewer can hear the order of moves and the tradeoff behind them.",
+    evidence:
+      "Replace soft outcomes with a real metric, percentage, scope marker, or standard-work change.",
+    reflection:
+      "End with the operating lesson and what changed in how you now lead or inspect the work.",
+  };
+
+  const repairPlan = getWeakestDimensionIds(params.dimensions, 3).map(
+    (dimensionId) =>
+      weakDimensionActions[dimensionId as StoryReviewDimension["id"]],
+  );
+
+  if (!params.story.categoryTags.length) {
+    repairPlan.push(
+      "Tag the story to the Amazon categories it can credibly answer so you can actually rehearse it against the right prompts.",
+    );
+  }
+
+  return [...new Set([...repairPlan, ...params.upgradeMoves, ...params.misses.slice(0, 2)])].slice(
+    0,
+    6,
+  );
+}
+
 function scoreStructure(answer: string): AnswerReviewDimension {
   const words = countWords(answer);
   const sentences = answer
@@ -1782,14 +1983,32 @@ export function reviewStarStory(story: Partial<StoryDraft>): StoryReview {
     );
   }
 
+  const verdict = inferStoryVerdict(score);
+  const brutalTruth = buildStoryBrutalTruth(verdict, misses);
+  const debriefReadout = buildStoryDebriefReadout({
+    verdict,
+    story: safe,
+    dimensions,
+    misses,
+  });
+  const repairPlan = buildStoryRepairPlan({
+    dimensions,
+    misses,
+    upgradeMoves,
+    story: safe,
+  });
+
   return {
     score,
-    verdict: inferStoryVerdict(score),
+    verdict,
     verdictLabel: buildStoryVerdictLabel(score),
     dimensions,
     strengths: strengths.slice(0, 4),
     misses: [...new Set(misses)].slice(0, 6),
     upgradeMoves: [...new Set(upgradeMoves)].slice(0, 4),
+    brutalTruth,
+    debriefReadout,
+    repairPlan,
   };
 }
 
@@ -2248,8 +2467,25 @@ export function reviewInterviewAnswer(
       : verdict === "hire_signal"
         ? "This is competitive, but there is still room to sharpen proof or decision quality."
         : verdict === "borderline"
-          ? "This might survive a friendly interview, but it will struggle with a tough follow-up."
+      ? "This might survive a friendly interview, but it will struggle with a tough follow-up."
           : "This is below the bar right now. The answer sounds experienced, but the signal is not yet interview-grade.";
+  const brutalTruth = buildAnswerBrutalTruth(verdict, misses);
+  const debriefReadout = buildAnswerDebriefReadout({
+    interviewerLabel: interviewerLens.label,
+    verdict,
+    question,
+    dimensions,
+    metricsCount,
+    fillerCount,
+    misses,
+  });
+  const repairPlan = buildAnswerRepairPlan({
+    dimensions,
+    misses,
+    rewriteMoves,
+    metricsCount,
+    wordCount,
+  });
 
   return {
     score,
@@ -2268,6 +2504,9 @@ export function reviewInterviewAnswer(
     misses: [...new Set(misses)].slice(0, 6),
     followUps: [...new Set(followUps)].slice(0, 4),
     rewriteMoves: [...new Set(rewriteMoves)].slice(0, 4),
+    brutalTruth,
+    debriefReadout,
+    repairPlan,
   };
 }
 

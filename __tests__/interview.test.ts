@@ -438,6 +438,8 @@ describe("interview prep helpers", () => {
     expect(review.rating).not.toBe("needs_work");
     expect(review.metricsCount).toBeGreaterThan(0);
     expect(review.strengths.length).toBeGreaterThan(0);
+    expect(review.debriefReadout.length).toBeGreaterThan(20);
+    expect(review.repairPlan.length).toBeGreaterThan(0);
   });
 
   it("gets stricter under the bar-raiser lens", () => {
@@ -476,6 +478,8 @@ describe("interview prep helpers", () => {
     expect(review.score).toBeLessThan(68);
     expect(review.rating).toBe("needs_work");
     expect(review.metricsCount).toBe(0);
+    expect(review.brutalTruth.toLowerCase()).toContain("would not move you forward");
+    expect(review.repairPlan.length).toBeGreaterThan(1);
     expect(
       review.misses.some((item) => item.toLowerCase().includes("ownership")),
     ).toBe(true);
@@ -517,6 +521,23 @@ describe("interview prep helpers", () => {
         INTERVIEW_QUESTIONS.some((question) => question.prompt === prompt),
       ),
     ).toBe(true);
+  });
+
+  it("returns detailed story debriefs and repair plans", () => {
+    const review = reviewStarStory({
+      competency: "leadership",
+      categoryTags: ["deliver-results"],
+      title: "Underpowered story",
+      situation: "Things were hard.",
+      task: "I had to help.",
+      action: "I worked with the team and handled tasks.",
+      result: "It got better.",
+      reflection: "",
+    });
+
+    expect(review.brutalTruth.length).toBeGreaterThan(20);
+    expect(review.debriefReadout.toLowerCase()).toContain("debrief");
+    expect(review.repairPlan.length).toBeGreaterThan(1);
   });
 
   it("scores prompt readiness from saved stories and reps", () => {

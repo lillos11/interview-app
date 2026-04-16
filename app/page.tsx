@@ -2242,6 +2242,24 @@ export default function HomePage() {
                 </div>
               </div>
 
+              <div className="rounded-[24px] border border-rose-200 bg-rose-50/80 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-900">
+                  Brutal honesty
+                </p>
+                <p className="mt-3 text-sm leading-7 text-rose-950">
+                  {liveStoryReview.brutalTruth}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Debrief readout
+                </p>
+                <p className="mt-3 text-sm leading-7 text-slate-800">
+                  {liveStoryReview.debriefReadout}
+                </p>
+              </div>
+
               <div className="rounded-[24px] bg-slate-950 p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
                   Coach notes
@@ -2262,6 +2280,19 @@ export default function HomePage() {
                       transitions sound conversational, not memorized.
                     </p>
                   )}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Repair plan
+                </p>
+                <div className="mt-3 grid gap-3 text-sm text-slate-700">
+                  {liveStoryReview.repairPlan.map((item) => (
+                    <div key={item} className="rounded-2xl bg-slate-50 p-3">
+                      {item}
+                    </div>
+                  ))}
                 </div>
               </div>
 

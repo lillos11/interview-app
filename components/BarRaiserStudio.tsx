@@ -1174,6 +1174,25 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
+          <div className="mt-4 grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+            <div className="rounded-[24px] border border-rose-200 bg-rose-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-900">
+                Brutal honesty
+              </p>
+              <p className="mt-3 text-sm leading-7 text-rose-950">
+                {review.brutalTruth}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Debrief readout
+              </p>
+              <p className="mt-3 text-sm leading-7 text-slate-800">
+                {review.debriefReadout}
+              </p>
+            </div>
+          </div>
+
           {timingFeedback && reviewDurationSeconds !== null ? (
             <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1314,14 +1333,27 @@ export default function BarRaiserStudio({
 
               <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-4 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                  Rewrite this answer
+                  Repair this answer
                 </p>
                 <div className="mt-3 space-y-3 text-sm leading-6 text-white/88">
-                  {review.rewriteMoves.map((move) => (
+                  {review.repairPlan.map((move) => (
                     <div
                       key={move}
                       className="rounded-2xl border border-white/10 bg-white/5 p-3"
                     >
+                      {move}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Rewrite moves
+                </p>
+                <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                  {review.rewriteMoves.map((move) => (
+                    <div key={move} className="rounded-2xl bg-slate-50 p-3">
                       {move}
                     </div>
                   ))}

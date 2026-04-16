@@ -26,6 +26,8 @@ describe("executive coach", () => {
     expect(reply.mode).toBe("opener");
     expect(reply.executiveRewrite).toContain("I started at Amazon");
     expect(reply.nextMoves.length).toBeGreaterThan(1);
+    expect(reply.debriefReadout).toContain("debrief");
+    expect(reply.repairPlan.length).toBeGreaterThan(1);
   });
 
   it("diagnoses weak signals and recommends a real question", () => {
@@ -43,6 +45,8 @@ describe("executive coach", () => {
 
     expect(reply.mode).toBe("weakness");
     expect(reply.hardTruths.length).toBeGreaterThan(1);
+    expect(reply.debriefReadout).toContain("debrief");
+    expect(reply.repairPlan.length).toBeGreaterThan(0);
     expect(reply.recommendedQuestion).not.toBeNull();
   });
 
@@ -90,6 +94,8 @@ describe("executive coach", () => {
     expect(reply.mode).toBe("story");
     expect(reply.executiveRewrite).toContain("Pack rate improved");
     expect(reply.hardTruths.length).toBeGreaterThan(0);
+    expect(reply.debriefReadout).toContain("Debrief");
+    expect(reply.repairPlan.length).toBeGreaterThan(0);
     expect(reply.recommendedStories.length).toBeGreaterThan(0);
   });
 });

@@ -64,7 +64,9 @@ export interface ExecutiveCoachReply {
   title: string;
   summary: string;
   executiveRewrite: string | null;
+  debriefReadout: string | null;
   hardTruths: string[];
+  repairPlan: string[];
   nextMoves: string[];
   suggestedPrompts: string[];
   recommendedQuestion: ExecutiveCoachQuestionReference | null;
@@ -85,6 +87,17 @@ function clampList(items: string[], limit: number): string[] {
     0,
     limit,
   );
+}
+
+function buildCoachDebriefReadout(
+  title: string,
+  summary: string,
+  hardTruths: string[],
+): string {
+  return [summary, ...hardTruths.slice(0, 2)]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/^/, `${title} debrief: `);
 }
 
 function countStorySignals(story: Partial<StoryDraft>): number {
@@ -416,15 +429,18 @@ function buildBriefingReply(
     ],
     4,
   );
+  const summary = context.selectedCategory
+    ? `Current lane: ${context.selectedCategory.label}. I am optimizing for sharper signal, cleaner proof, and answers that survive senior follow-up.`
+    : `Current lane: ${INTERVIEW_SOURCE_FAMILY_LABELS[context.selectedFamily]}. I am optimizing for sharper signal, cleaner proof, and answers that survive senior follow-up.`;
 
   return {
     mode: "briefing",
     title: "Executive Briefing",
-    summary: context.selectedCategory
-      ? `Current lane: ${context.selectedCategory.label}. I am optimizing for sharper signal, cleaner proof, and answers that survive senior follow-up.`
-      : `Current lane: ${INTERVIEW_SOURCE_FAMILY_LABELS[context.selectedFamily]}. I am optimizing for sharper signal, cleaner proof, and answers that survive senior follow-up.`,
+    summary,
     executiveRewrite: buildExecutiveOpening(context.progress),
+    debriefReadout: buildCoachDebriefReadout("Executive briefing", summary, hardTruths),
     hardTruths: clampList(hardTruths, 4),
+    repairPlan: nextMoves,
     nextMoves,
     suggestedPrompts: [
       "What is my weakest interview signal right now?",
@@ -444,31 +460,36 @@ function buildOpenerReply(context: ExecutiveCoachContext): ExecutiveCoachReply {
     .filter(([, value]) => value.trim().length === 0)
     .map(([field]) => field);
   const recommendedQuestion = pickRecommendedQuestion(context);
+  const hardTruths = clampList(
+    [
+      missingPitchFields.length
+        ? `Your pitch pack is incomplete: ${missingPitchFields.join(", ")} still needs sharper language.`
+        : "",
+      "If your opener takes too long to reach measurable proof, you sound junior even when your experience is real.",
+      "A senior opener must explain why you fit this role now, not just where you have worked before.",
+    ],
+    4,
+  );
+  const repairPlan = clampList(
+    [
+      "Cut the opener to 60 to 75 seconds and remove any autobiographical filler.",
+      "Lead with trajectory, land the proof fast, and close with why this next role is the logical scale move.",
+      "Practice the opener until you can say it cleanly without filler words or apologetic setup.",
+    ],
+    4,
+  );
+  const summary =
+    "Your opener should sound like a leader with receipts, not a candidate searching for a safe summary.";
 
   return {
     mode: "opener",
     title: "Executive Opening",
-    summary:
-      "Your opener should sound like a leader with receipts, not a candidate searching for a safe summary.",
+    summary,
     executiveRewrite: opening,
-    hardTruths: clampList(
-      [
-        missingPitchFields.length
-          ? `Your pitch pack is incomplete: ${missingPitchFields.join(", ")} still needs sharper language.`
-          : "",
-        "If your opener takes too long to reach measurable proof, you sound junior even when your experience is real.",
-        "A senior opener must explain why you fit this role now, not just where you have worked before.",
-      ],
-      4,
-    ),
-    nextMoves: clampList(
-      [
-        "Keep it inside 60 to 75 seconds.",
-        "Lead with trajectory, land the proof fast, and close with why this next role is the logical scale move.",
-        "Practice the opener until you can say it cleanly without filler words or apologetic setup.",
-      ],
-      4,
-    ),
+    debriefReadout: buildCoachDebriefReadout("Opener", summary, hardTruths),
+    hardTruths,
+    repairPlan,
+    nextMoves: repairPlan,
     suggestedPrompts: [
       "Make that opener sharper for an Area Manager interview.",
       "Turn my opener into something a bar raiser would respect.",
@@ -511,16 +532,24 @@ function buildStoryReply(context: ExecutiveCoachContext): ExecutiveCoachReply {
         (question) => question.sourceCategoryId === categoryHint,
       ) ?? pickRecommendedQuestion(context)
     : pickRecommendedQuestion(context);
+  const summary = `Story verdict: ${review.verdictLabel}. I am looking for executive clarity, obvious ownership, measurable proof, and a lesson that scales.`;
+  const hardTruths = clampList(
+    [...review.misses, ...pressure.vulnerabilities, ...draftSuggestion.missingPieces],
+    5,
+  );
+  const repairPlan = clampList(
+    [...review.repairPlan, ...pressure.upgradeMoves, ...draftSuggestion.polishNotes],
+    6,
+  );
 
   return {
     mode: "story",
     title: "Story Audit",
-    summary: `Story verdict: ${review.verdictLabel}. I am looking for executive clarity, obvious ownership, measurable proof, and a lesson that scales.`,
+    summary,
     executiveRewrite: buildExecutiveStoryNarrative(draftSuggestion.draft),
-    hardTruths: clampList(
-      [...review.misses, ...pressure.vulnerabilities, ...draftSuggestion.missingPieces],
-      5,
-    ),
+    debriefReadout: review.debriefReadout,
+    hardTruths,
+    repairPlan,
     nextMoves: clampList(
       [...pressure.upgradeMoves, ...draftSuggestion.polishNotes],
       5,
@@ -543,33 +572,38 @@ function buildPressureReply(
   const question =
     context.currentQuestion ??
     pickRecommendedQuestion(context, { preferManagerOnly: true });
+  const summary = question
+    ? "I am assuming the interviewer is not trying to help you. They are looking for the weak seam in your logic, proof, or ownership."
+    : "I am assuming the interviewer is not trying to help you. They are looking for the weak seam in your logic, proof, or ownership.";
+  const hardTruths = clampList(
+    [
+      "If you cannot name the tradeoff, the interviewer will assume you got lucky.",
+      "If you cannot prove the delta, the interviewer will discount the story.",
+      question?.managerOnly
+        ? "Manager-only questions punish vague people leadership language especially hard."
+        : "",
+    ],
+    4,
+  );
+  const repairPlan = clampList(
+    [
+      "Answer with stake, action sequence, metric, and lesson. Skip the warm-up.",
+      question?.followUps[0] ?? "",
+      question?.followUps[1] ?? "",
+      "Expect a second follow-up on what became repeatable after your intervention.",
+    ],
+    5,
+  );
 
   return {
     mode: "pressure",
     title: "Bar Raiser Pressure",
-    summary: question
-      ? "I am assuming the interviewer is not trying to help you. They are looking for the weak seam in your logic, proof, or ownership."
-      : "I am assuming the interviewer is not trying to help you. They are looking for the weak seam in your logic, proof, or ownership.",
+    summary,
     executiveRewrite: null,
-    hardTruths: clampList(
-      [
-        "If you cannot name the tradeoff, the interviewer will assume you got lucky.",
-        "If you cannot prove the delta, the interviewer will discount the story.",
-        question?.managerOnly
-          ? "Manager-only questions punish vague people leadership language especially hard."
-          : "",
-      ],
-      4,
-    ),
-    nextMoves: clampList(
-      [
-        "Answer with stake, action sequence, metric, and lesson. Skip the warm-up.",
-        question?.followUps[0] ?? "",
-        question?.followUps[1] ?? "",
-        "Expect a second follow-up on what became repeatable after your intervention.",
-      ],
-      5,
-    ),
+    debriefReadout: buildCoachDebriefReadout("Pressure", summary, hardTruths),
+    hardTruths,
+    repairPlan,
+    nextMoves: repairPlan,
     suggestedPrompts: [
       "Give me harder follow-up questions.",
       "What would an L7 bar raiser attack in my answer?",
@@ -593,41 +627,46 @@ function buildWeaknessReply(
     preferManagerOnly: true,
     preferredCompetency: weakestCompetencyId,
   });
+  const hardTruths = clampList(
+    [
+      weakestCompetency
+        ? `${weakestCompetency.title} is underdeveloped enough that it could drag a strong overall loop.`
+        : "",
+      averageScore !== null
+        ? `Your recent harsh-review average is ${averageScore}%. Anything below the mid-70s is still too fragile.`
+        : "You do not have enough harsh-review reps logged yet to prove consistency.",
+      coverage.categoryCoverageCount < 10
+        ? `Category coverage is still thin at ${coverage.categoryCoverageCount}/${coverage.categoryCoverageTotal}.`
+        : "",
+      coverage.managerRepCount < 3
+        ? "Manager-level pressure is still too lightly trained."
+        : "",
+    ],
+    5,
+  );
+  const repairPlan = clampList(
+    [
+      weakestCompetency
+        ? `Build one saved story and one bar-raiser rep in ${weakestCompetency.title.toLowerCase()} this session.`
+        : "",
+      "Do not chase novelty. Repeat the same weak prompt until the answer gets visibly tighter.",
+      "Use numbers, scope, and lesson learned in every answer until that becomes automatic.",
+    ],
+    4,
+  );
+  const summary = weakestCompetency
+    ? `Your weakest interview signal is ${weakestCompetency.title.toLowerCase()}. That is the lane I would attack first if I were interviewing you.`
+    : "Your current profile needs sharper proof density and more deliberate reps before it looks truly senior.";
 
   return {
     mode: "weakness",
     title: "Weakness Diagnosis",
-    summary: weakestCompetency
-      ? `Your weakest interview signal is ${weakestCompetency.title.toLowerCase()}. That is the lane I would attack first if I were interviewing you.`
-      : "Your current profile needs sharper proof density and more deliberate reps before it looks truly senior.",
+    summary,
     executiveRewrite: null,
-    hardTruths: clampList(
-      [
-        weakestCompetency
-          ? `${weakestCompetency.title} is underdeveloped enough that it could drag a strong overall loop.`
-          : "",
-        averageScore !== null
-          ? `Your recent harsh-review average is ${averageScore}%. Anything below the mid-70s is still too fragile.`
-          : "You do not have enough harsh-review reps logged yet to prove consistency.",
-        coverage.categoryCoverageCount < 10
-          ? `Category coverage is still thin at ${coverage.categoryCoverageCount}/${coverage.categoryCoverageTotal}.`
-          : "",
-        coverage.managerRepCount < 3
-          ? "Manager-level pressure is still too lightly trained."
-          : "",
-      ],
-      5,
-    ),
-    nextMoves: clampList(
-      [
-        weakestCompetency
-          ? `Build one saved story and one bar-raiser rep in ${weakestCompetency.title.toLowerCase()} this session.`
-          : "",
-        "Do not chase novelty. Repeat the same weak prompt until the answer gets visibly tighter.",
-        "Use numbers, scope, and lesson learned in every answer until that becomes automatic.",
-      ],
-      4,
-    ),
+    debriefReadout: buildCoachDebriefReadout("Weakness", summary, hardTruths),
+    hardTruths,
+    repairPlan,
+    nextMoves: repairPlan,
     suggestedPrompts: [
       "Give me the best fix for that weakness.",
       "Ask me a drill question that targets that gap.",
@@ -650,33 +689,38 @@ function buildDrillReply(context: ExecutiveCoachContext): ExecutiveCoachReply {
       ),
       preferredCompetency,
     }) ?? context.currentQuestion;
+  const hardTruths = clampList(
+    [
+      recommendedQuestion
+        ? `This question lives in ${recommendedQuestion.sourceCategoryLabel}, so a weak answer here leaks into multiple adjacent prompts.`
+        : "",
+      recommendedQuestion?.managerOnly
+        ? "This is a manager-only prompt, so the interviewer will expect bigger judgment and stronger people leadership proof."
+        : "",
+    ],
+    4,
+  );
+  const repairPlan = clampList(
+    [
+      "Take one live rep before you let yourself read the suggested follow-ups.",
+      "After the first take, cut 20% of the setup and add one measurable outcome.",
+      recommendedQuestion?.followUps[0] ?? "",
+    ],
+    4,
+  );
+  const summary = recommendedQuestion
+    ? "Use this prompt as a real rep. I picked it because it is under-trained relative to your current focus."
+    : "Use a real prompt and do not switch categories until your answer is cleaner on the replay.";
 
   return {
     mode: "drill",
     title: "Executive Drill",
-    summary: recommendedQuestion
-      ? `Use this prompt as a real rep. I picked it because it is under-trained relative to your current focus.`
-      : "Use a real prompt and do not switch categories until your answer is cleaner on the replay.",
+    summary,
     executiveRewrite: null,
-    hardTruths: clampList(
-      [
-        recommendedQuestion
-          ? `This question lives in ${recommendedQuestion.sourceCategoryLabel}, so a weak answer here leaks into multiple adjacent prompts.`
-          : "",
-        recommendedQuestion?.managerOnly
-          ? "This is a manager-only prompt, so the interviewer will expect bigger judgment and stronger people leadership proof."
-          : "",
-      ],
-      4,
-    ),
-    nextMoves: clampList(
-      [
-        "Take one live rep before you let yourself read the suggested follow-ups.",
-        "After the first take, cut 20% of the setup and add one measurable outcome.",
-        recommendedQuestion?.followUps[0] ?? "",
-      ],
-      4,
-    ),
+    debriefReadout: buildCoachDebriefReadout("Drill", summary, hardTruths),
+    hardTruths,
+    repairPlan,
+    nextMoves: repairPlan,
     suggestedPrompts: [
       "Give me another question in this lane.",
       "How should I structure the answer to this prompt?",

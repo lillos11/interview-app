@@ -94,6 +94,17 @@ function renderReply(
         </div>
       ) : null}
 
+      {reply.debriefReadout ? (
+        <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Debrief readout
+          </p>
+          <p className="mt-3 text-sm leading-7 text-slate-800">
+            {reply.debriefReadout}
+          </p>
+        </div>
+      ) : null}
+
       {reply.hardTruths.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -104,6 +115,24 @@ function renderReply(
               <div
                 key={item}
                 className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-sm leading-6 text-rose-950"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {reply.repairPlan.length ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Repair plan
+          </p>
+          <div className="mt-3 space-y-2">
+            {reply.repairPlan.map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-cyan-200 bg-cyan-50/80 p-3 text-sm leading-6 text-cyan-950"
               >
                 {item}
               </div>
