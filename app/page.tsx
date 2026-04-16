@@ -13,6 +13,7 @@ import {
   getPrepDeckStoriesForCategory,
   getPrepDeckStoriesForFamily,
   getPrepDeckStoryById,
+  type PrepDeckStoryTemplate,
 } from "@/lib/amazonPrepDeck";
 import {
   buildEliteStoryDraft,
@@ -155,6 +156,151 @@ function classNames(
   return values.filter(Boolean).join(" ");
 }
 
+function PrepDeckStoryCard({
+  story,
+  expanded,
+  onToggle,
+  onLoad,
+  emphasisLabel,
+}: {
+  story: PrepDeckStoryTemplate;
+  expanded: boolean;
+  onToggle: () => void;
+  onLoad: () => void;
+  emphasisLabel?: string;
+}) {
+  return (
+    <article className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+              Story {story.storyNumber}
+            </span>
+            {emphasisLabel ? (
+              <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                {emphasisLabel}
+              </span>
+            ) : null}
+            <h3 className="text-lg font-semibold text-slate-950">
+              {story.title}
+            </h3>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {story.keyNumbers.map((item) => (
+              <span
+                key={item}
+                className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-700">
+            {story.challenge}
+          </p>
+          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+            Best for {story.bestFor.join(" · ")}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+          >
+            {expanded ? "Hide details" : "Show details"}
+          </button>
+          <button
+            type="button"
+            onClick={onLoad}
+            className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+          >
+            Load into builder
+          </button>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Situation
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {story.situation}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Task
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {story.task}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Action
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {story.action}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Result
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {story.result}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Lesson
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {story.lesson}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Standard work
+              </p>
+              <div className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+                {story.standardWork.map((item) => (
+                  <div key={item} className="rounded-2xl bg-white p-3">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Amazon categories
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {story.categoryIds.map((categoryId) => (
+                  <span
+                    key={categoryId}
+                    className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+                  >
+                    {getQuestionCategoryById(categoryId).label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -236,6 +382,9 @@ export default function HomePage() {
     createEmptyStoryWriterInput(),
   );
   const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
+  const [expandedPrepDeckStoryId, setExpandedPrepDeckStoryId] = useState<
+    string | null
+  >(null);
   const [barRaiserQuestionId, setBarRaiserQuestionId] = useState<string | null>(
     null,
   );
@@ -852,6 +1001,12 @@ export default function HomePage() {
     setEditingStoryId(null);
     setStoryDraft(buildPrepDeckStoryDraft(story));
     setActiveTab("star_lab");
+  };
+
+  const togglePrepDeckStoryDetails = (storyId: string) => {
+    setExpandedPrepDeckStoryId((previous) =>
+      previous === storyId ? null : storyId,
+    );
   };
 
   const toggleChecklist = (itemId: string, done: boolean) => {
@@ -1767,8 +1922,13 @@ export default function HomePage() {
                     Imported prep deck
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    Use your slide stories as elite answer blueprints.
+                    Every imported story is here, not just the shortlist.
                   </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    The lane-matched section below shows the best fits for your
+                    current category. The full library shows all imported deck
+                    stories with the details you gave me.
+                  </p>
                 </div>
                 <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                   {AMAZON_PREP_DECK_STORIES.length} story templates
@@ -1784,49 +1944,61 @@ export default function HomePage() {
                   </p>
                 </div>
               ) : null}
-              <div className="mt-4 space-y-3">
-                {prepDeckStoriesForFilter.map((story) => (
-                  <article
-                    key={story.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
-                            Story {story.storyNumber}
-                          </span>
-                          <h3 className="text-lg font-semibold text-slate-950">
-                            {story.title}
-                          </h3>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {story.keyNumbers.slice(0, 3).map((item) => (
-                            <span
-                              key={item}
-                              className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900"
-                            >
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-slate-700">
-                          {story.challenge}
-                        </p>
-                        <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-                          Best for {story.bestFor.join(" · ")}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => loadPrepDeckStory(story.id)}
-                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
-                      >
-                        Load into builder
-                      </button>
-                    </div>
-                  </article>
-                ))}
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Best matches for this lane
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      These are the stories that best match your current family
+                      or category filter.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                    {prepDeckStoriesForFilter.length} shown
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {prepDeckStoriesForFilter.map((story) => (
+                    <PrepDeckStoryCard
+                      key={story.id}
+                      story={story}
+                      expanded={expandedPrepDeckStoryId === story.id}
+                      onToggle={() => togglePrepDeckStoryDetails(story.id)}
+                      onLoad={() => loadPrepDeckStory(story.id)}
+                      emphasisLabel="Lane match"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Full story library
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      This is the full imported deck. Nothing is hidden behind
+                      the lane filter here.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                    {AMAZON_PREP_DECK_STORIES.length} total
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {AMAZON_PREP_DECK_STORIES.map((story) => (
+                    <PrepDeckStoryCard
+                      key={story.id}
+                      story={story}
+                      expanded={expandedPrepDeckStoryId === story.id}
+                      onToggle={() => togglePrepDeckStoryDetails(story.id)}
+                      onLoad={() => loadPrepDeckStory(story.id)}
+                    />
+                  ))}
+                </div>
               </div>
             </article>
 
