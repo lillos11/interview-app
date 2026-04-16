@@ -17,9 +17,59 @@ import {
   DEFAULT_TUITION_PLAN,
   DEFAULT_USER_SETTINGS
 } from '@/lib/defaults';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseConfigured, prisma } from '@/lib/prisma';
+
+function createFallbackBuckets(): Record<BucketNameType, SavingsBucket> {
+  const timestamp = new Date(0);
+
+  return DEFAULT_BUCKETS.reduce<Record<BucketNameType, SavingsBucket>>((acc, bucket, index) => {
+    acc[bucket.name as BucketNameType] = {
+      id: index + 1,
+      name: bucket.name,
+      currentAmount: bucket.currentAmount,
+      targetAmount: bucket.targetAmount,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    return acc;
+  }, {} as Record<BucketNameType, SavingsBucket>);
+}
+
+function createFallbackSettings(): UserSettings {
+  const timestamp = new Date(0);
+
+  return {
+    ...DEFAULT_USER_SETTINGS,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function createFallbackDebtPlan(): DebtPlan {
+  const timestamp = new Date(0);
+
+  return {
+    ...DEFAULT_DEBT_PLAN,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function createFallbackTuitionPlan(): TuitionPlan {
+  const timestamp = new Date(0);
+
+  return {
+    ...DEFAULT_TUITION_PLAN,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
 
 export async function ensureBaseData() {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
   await prisma.userSettings.upsert({
     where: { id: 1 },
     update: {},
@@ -48,6 +98,10 @@ export async function ensureBaseData() {
 }
 
 export async function seedIfEmpty() {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
   await ensureBaseData();
 
   const [taskCount, timeCount] = await Promise.all([
@@ -70,6 +124,15 @@ export async function getCoreData(): Promise<{
   tuitionPlan: TuitionPlan;
   buckets: Record<BucketNameType, SavingsBucket>;
 }> {
+  if (!isDatabaseConfigured()) {
+    return {
+      settings: createFallbackSettings(),
+      debtPlan: createFallbackDebtPlan(),
+      tuitionPlan: createFallbackTuitionPlan(),
+      buckets: createFallbackBuckets()
+    };
+  }
+
   await ensureBaseData();
 
   const [settings, debtPlan, tuitionPlan, buckets] = await Promise.all([
@@ -93,6 +156,10 @@ export async function getCoreData(): Promise<{
 }
 
 export async function getWeekEntries(reference = new Date()): Promise<TimeEntry[]> {
+  if (!isDatabaseConfigured()) {
+    return [];
+  }
+
   const weekStart = startOfWeek(reference);
   const weekEnd = endOfWeek(reference);
 
@@ -110,12 +177,20 @@ export async function getWeekEntries(reference = new Date()): Promise<TimeEntry[
 }
 
 export async function getAllTasks(): Promise<Task[]> {
+  if (!isDatabaseConfigured()) {
+    return [];
+  }
+
   return prisma.task.findMany({
     orderBy: [{ status: 'asc' }, { dueDate: 'asc' }]
   });
 }
 
 export async function getOpenTaskByUrgency(): Promise<Task | null> {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
   const tasks = await prisma.task.findMany({
     where: {
       status: {
@@ -140,6 +215,10 @@ export async function getOpenTaskByUrgency(): Promise<Task | null> {
 }
 
 export async function getSymptoms(limit = 20) {
+  if (!isDatabaseConfigured()) {
+    return [];
+  }
+
   return prisma.symptomEntry.findMany({
     orderBy: {
       date: 'desc'
@@ -150,6 +229,10 @@ export async function getSymptoms(limit = 20) {
 
 export async function getWorkoutStreak(targetSessionsPerWeek: number): Promise<number> {
   if (targetSessionsPerWeek <= 0) {
+    return 0;
+  }
+
+  if (!isDatabaseConfigured()) {
     return 0;
   }
 

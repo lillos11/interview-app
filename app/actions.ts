@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { ensureBaseData } from '@/lib/data';
 import { BucketName, TaskStatus, TimeCategory } from '@/lib/domain';
-import { prisma } from '@/lib/prisma';
+import { assertDatabaseConfigured, prisma } from '@/lib/prisma';
 
 function numberFromForm(formData: FormData, key: string, fallback = 0): number {
   const raw = formData.get(key);
@@ -37,6 +37,7 @@ function revalidateAll() {
 }
 
 export async function addTimeEntryAction(formData: FormData) {
+  assertDatabaseConfigured();
   await ensureBaseData();
 
   const category = stringFromForm(formData, 'category', 'STUDY').toUpperCase();
@@ -61,6 +62,7 @@ export async function addTimeEntryAction(formData: FormData) {
 }
 
 export async function createTaskAction(formData: FormData) {
+  assertDatabaseConfigured();
   await ensureBaseData();
 
   const title = stringFromForm(formData, 'title').trim();
@@ -94,6 +96,7 @@ export async function createTaskAction(formData: FormData) {
 }
 
 export async function quickAddTaskAction(formData: FormData) {
+  assertDatabaseConfigured();
   await ensureBaseData();
   const title = stringFromForm(formData, 'title').trim();
 
@@ -118,6 +121,7 @@ export async function quickAddTaskAction(formData: FormData) {
 }
 
 export async function updateTaskStatusAction(formData: FormData) {
+  assertDatabaseConfigured();
   const id = Math.round(numberFromForm(formData, 'id', 0));
   const status = stringFromForm(formData, 'status', 'TODO').toUpperCase();
 
@@ -141,6 +145,7 @@ export async function updateTaskStatusAction(formData: FormData) {
 }
 
 export async function deleteTaskAction(formData: FormData) {
+  assertDatabaseConfigured();
   const id = Math.round(numberFromForm(formData, 'id', 0));
   if (!id) {
     throw new Error('Task ID is required');
@@ -157,6 +162,7 @@ export async function deleteTaskAction(formData: FormData) {
 }
 
 export async function logSymptomAction(formData: FormData) {
+  assertDatabaseConfigured();
   await ensureBaseData();
 
   await prisma.symptomEntry.create({
@@ -174,6 +180,7 @@ export async function logSymptomAction(formData: FormData) {
 }
 
 export async function updateSettingsAction(formData: FormData) {
+  assertDatabaseConfigured();
   await ensureBaseData();
 
   const amountDue = numberFromForm(formData, 'tuitionAmountDue', 0);

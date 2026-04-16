@@ -65,7 +65,8 @@ export function FellowshipTimer({ compact = false }: FellowshipTimerProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save fellowship session.');
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Failed to save fellowship session.');
       }
 
       setStatus(`Saved ${minutes} fellowship minutes.`);
