@@ -2025,7 +2025,9 @@ export function reviewInterviewAnswer(
   );
   const strengths: string[] = [];
   const misses: string[] = [];
-  const followUps = [...question.followUps];
+  const followUps = question.followUps.length
+    ? [...question.followUps]
+    : getRelatedQuestionPrompts(question, 3);
   const rewriteMoves: string[] = [];
 
   if (dimensions[0].score >= 75) {
@@ -2047,9 +2049,6 @@ export function reviewInterviewAnswer(
     misses.push(
       "Ownership is blurred by team language. Make your decisions and interventions impossible to miss.",
     );
-    followUps.push(
-      "What happened because of you specifically, not just because the team worked hard?",
-    );
     rewriteMoves.push(
       'Swap vague "we" language for the two or three moves you personally led, chose, or escalated.',
     );
@@ -2062,9 +2061,6 @@ export function reviewInterviewAnswer(
   } else {
     misses.push(
       "The proof is too soft. Add one number, one delta, or one concrete scope marker.",
-    );
-    followUps.push(
-      "What is the single number or delta that proves this answer matters?",
     );
     rewriteMoves.push(
       "Close with a measured result: revenue, time saved, quality gain, risk reduced, or customer impact.",
@@ -2079,9 +2075,6 @@ export function reviewInterviewAnswer(
     misses.push(
       "Judgment is underpowered. Explain the tradeoff, why you chose that path, and what risk you accepted.",
     );
-    followUps.push(
-      "What tradeoff did you accept, and why was that the right call at the time?",
-    );
     rewriteMoves.push(
       'Add one sentence that starts with "I chose X instead of Y because..." so your judgment is explicit.',
     );
@@ -2094,9 +2087,6 @@ export function reviewInterviewAnswer(
   } else {
     misses.push(
       "The delivery is hedged or overlong. Fewer filler words and shorter sentences will raise confidence fast.",
-    );
-    followUps.push(
-      "Can you answer the same prompt again in 90 seconds without hedge words?",
     );
     rewriteMoves.push(
       'Trim filler phrases like "kind of," "basically," or "maybe" and aim for a tighter 90-120 second take.',
@@ -2183,9 +2173,6 @@ export function reviewInterviewAnswer(
     );
   }
 
-  if (metricsCount === 0) {
-    followUps.push("What changed in a way another person could verify?");
-  }
   if (fillerCount >= 3) {
     misses.push(
       "The filler words will read as uncertainty in a live interview. Clean them up before the next rep.",
@@ -2201,9 +2188,6 @@ export function reviewInterviewAnswer(
       score = clampScore(score - 6);
       misses.push(
         "An HRBP interviewer will want the people dynamic: trust built, coaching move, conflict handled, or the leadership behavior others felt.",
-      );
-      followUps.push(
-        "How did the person or team experience your leadership in that moment?",
       );
       rewriteMoves.push(
         "Add one sentence on the human dynamic: trust, feedback, coaching, conflict, or morale.",
@@ -2223,9 +2207,6 @@ export function reviewInterviewAnswer(
       misses.push(
         "An L6 interviewer will ask what became standard work or repeatable after the immediate fix.",
       );
-      followUps.push(
-        "What mechanism, checklist, dashboard, or standard work remained after you?",
-      );
     }
     if (!countMatches(normalizedAnswer, URGENCY_PATTERN)) {
       score = clampScore(score - 3);
@@ -2241,9 +2222,6 @@ export function reviewInterviewAnswer(
       misses.push(
         "A bar raiser will not give you credit without hearing the tradeoff and why you chose that path.",
       );
-      followUps.push(
-        "What option did you reject, and what risk did you knowingly accept?",
-      );
     }
     if (!countMatches(normalizedAnswer, STANDARD_WORK_PATTERN)) {
       score = clampScore(score - 5);
@@ -2258,9 +2236,6 @@ export function reviewInterviewAnswer(
       score = clampScore(score - 4);
       misses.push(
         "The lesson is not explicit enough. A high-level interviewer wants to hear how this changed your operating model.",
-      );
-      followUps.push(
-        "What changed in how you lead or inspect the work because of this experience?",
       );
     }
   }
@@ -2296,13 +2271,47 @@ export function reviewInterviewAnswer(
   };
 }
 
+export function getRelatedQuestionPrompts(
+  question: InterviewQuestion,
+  limit = 3,
+): string[] {
+  const sameCategory = INTERVIEW_QUESTIONS.filter(
+    (entry) =>
+      entry.id !== question.id &&
+      entry.sourceCategoryId === question.sourceCategoryId,
+  );
+  const sameCompetency = INTERVIEW_QUESTIONS.filter(
+    (entry) =>
+      entry.id !== question.id &&
+      entry.competency === question.competency &&
+      entry.sourceCategoryId !== question.sourceCategoryId,
+  );
+
+  return [...new Set([...sameCategory, ...sameCompetency].map((entry) => entry.prompt))]
+    .slice(0, limit);
+}
+
+function getStorySourceBankPrompts(
+  story: StoryDraft,
+  limit = 4,
+): string[] {
+  const taggedQuestions = INTERVIEW_QUESTIONS.filter((question) =>
+    story.categoryTags.includes(question.sourceCategoryId),
+  );
+  const competencyQuestions = INTERVIEW_QUESTIONS.filter(
+    (question) => question.competency === story.competency,
+  );
+
+  return [...new Set([...taggedQuestions, ...competencyQuestions].map((question) => question.prompt))]
+    .slice(0, limit);
+}
+
 export function buildStoryPressureTest(
   story: Partial<StoryDraft>,
 ): StoryPressureTest {
   const safe = sanitizeStoryDraft(story);
   const strengths: string[] = [];
   const vulnerabilities: string[] = [];
-  const pressureQuestions: string[] = [];
   const upgradeMoves: string[] = [];
 
   if (countWords(safe.action) >= 24) {
@@ -2326,9 +2335,6 @@ export function buildStoryPressureTest(
     vulnerabilities.push(
       'The result is soft. If someone asks "how much did it matter?" the story will wobble.',
     );
-    pressureQuestions.push(
-      "What is the clearest number, delta, or risk reduction tied to this story?",
-    );
     upgradeMoves.push(
       "Replace a generic outcome with a measurable one: time saved, quality gained, revenue moved, or risk reduced.",
     );
@@ -2350,9 +2356,6 @@ export function buildStoryPressureTest(
     vulnerabilities.push(
       "Ownership is blurry. The story still sounds like something a team did, not something you drove.",
     );
-    pressureQuestions.push(
-      "What would your manager say you personally changed in this situation?",
-    );
   } else {
     strengths.push(
       "Ownership comes through clearly enough that the story sounds personal, not generic.",
@@ -2363,9 +2366,6 @@ export function buildStoryPressureTest(
     vulnerabilities.push(
       "The story has motion but not tradeoff quality. Senior stories usually include the hard call.",
     );
-    pressureQuestions.push(
-      "What was the hardest tradeoff you made, and what risk did you accept?",
-    );
     upgradeMoves.push(
       "Add one decision sentence that makes the tradeoff explicit.",
     );
@@ -2374,9 +2374,6 @@ export function buildStoryPressureTest(
   if (countWords(safe.reflection) < 6) {
     vulnerabilities.push(
       "Reflection is undercooked. Without the lesson, the story does not show growth or self-awareness.",
-    );
-    pressureQuestions.push(
-      "What changed in how you operate after this experience?",
     );
     upgradeMoves.push("End with one operational lesson you still use today.");
   } else {
@@ -2387,29 +2384,14 @@ export function buildStoryPressureTest(
 
   switch (safe.competency) {
     case "leadership":
-      pressureQuestions.push(
-        "Where did you raise the standard instead of just keeping the project moving?",
-      );
       break;
     case "ownership":
-      pressureQuestions.push(
-        "What did you do first once you realized the situation could fail?",
-      );
       break;
     case "problem_solving":
-      pressureQuestions.push(
-        "Which assumption mattered most, and how did you test it?",
-      );
       break;
     case "stakeholder_management":
-      pressureQuestions.push(
-        "How did the relationship look after the disagreement or tension?",
-      );
       break;
     case "adaptability":
-      pressureQuestions.push(
-        "What was your reset move when the original plan stopped working?",
-      );
       break;
     case "technical_depth":
       if (
@@ -2423,14 +2405,8 @@ export function buildStoryPressureTest(
           "Add the key system constraint, architecture choice, or failure mode you had to manage.",
         );
       }
-      pressureQuestions.push(
-        "Which technical tradeoff would you revisit if you rebuilt this now?",
-      );
       break;
     default:
-      pressureQuestions.push(
-        "Why does this story make you especially credible for the role you want next?",
-      );
       break;
   }
 
@@ -2443,7 +2419,7 @@ export function buildStoryPressureTest(
     score,
     strengths: strengths.slice(0, 4),
     vulnerabilities: vulnerabilities.slice(0, 6),
-    pressureQuestions: [...new Set(pressureQuestions)].slice(0, 4),
+    pressureQuestions: getStorySourceBankPrompts(safe),
     upgradeMoves: [...new Set(upgradeMoves)].slice(0, 4),
   };
 }

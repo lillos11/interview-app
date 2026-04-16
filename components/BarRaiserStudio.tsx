@@ -852,14 +852,25 @@ export default function BarRaiserStudio({
                 </div>
                 <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                   <p className="font-semibold text-slate-950">
-                    Expected pressure follow-ups
+                    Source-bank follow-up reps
                   </p>
                   <div className="mt-3 space-y-2">
-                    {selectedQuestion.followUps.map((followUp) => (
-                      <div key={followUp} className="rounded-2xl bg-white p-3">
-                        {followUp}
+                    {selectedQuestion.followUps.length ? (
+                      selectedQuestion.followUps.map((followUp) => (
+                        <div
+                          key={followUp}
+                          className="rounded-2xl bg-white p-3"
+                        >
+                          {followUp}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl bg-white p-3">
+                        This prompt does not have extra follow-ups attached in
+                        your source bank. Use the core question and the scoring
+                        feedback to run repeat reps.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -1261,14 +1272,25 @@ export default function BarRaiserStudio({
 
               <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Pressure follow-ups
+                  Source-bank follow-up reps
                 </p>
                 <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
-                  {review.followUps.map((followUp) => (
-                    <div key={followUp} className="rounded-2xl bg-slate-50 p-3">
-                      {followUp}
+                  {review.followUps.length ? (
+                    review.followUps.map((followUp) => (
+                      <div
+                        key={followUp}
+                        className="rounded-2xl bg-slate-50 p-3"
+                      >
+                        {followUp}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      This prompt has no extra follow-ups attached in your
+                      source bank, so focus on fixing the misses and rerunning
+                      the same answer.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

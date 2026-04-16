@@ -10,6 +10,7 @@ import {
   GAME_DAY_CHECKLIST,
   getAmazonCoverageSummary,
   getPromptReadiness,
+  getRelatedQuestionPrompts,
   getStoryCategoryCoverage,
   getTopPassBlockers,
   getOverallReadiness,
@@ -483,9 +484,22 @@ describe("interview prep helpers", () => {
     ).toBe(true);
   });
 
+  it("keeps answer follow-ups tied to the imported source bank", () => {
+    const question =
+      INTERVIEW_QUESTIONS.find((entry) => entry.followUps.length > 0) ??
+      INTERVIEW_QUESTIONS[0];
+    const review = reviewInterviewAnswer(
+      question,
+      "We had a problem, the team worked on it, and we got through it without much structure or proof.",
+    );
+
+    expect(review.followUps).toEqual(question.followUps);
+  });
+
   it("pressure-tests stories and surfaces upgrade paths", () => {
     const pressureTest = buildStoryPressureTest({
       competency: "technical_depth",
+      categoryTags: ["dive-deep"],
       title: "Migration story",
       situation: "We needed to move to a new platform quickly.",
       task: "I was responsible for helping.",
@@ -498,6 +512,11 @@ describe("interview prep helpers", () => {
     expect(pressureTest.vulnerabilities.length).toBeGreaterThan(0);
     expect(pressureTest.upgradeMoves.length).toBeGreaterThan(0);
     expect(pressureTest.pressureQuestions.length).toBeGreaterThan(0);
+    expect(
+      pressureTest.pressureQuestions.every((prompt) =>
+        INTERVIEW_QUESTIONS.some((question) => question.prompt === prompt),
+      ),
+    ).toBe(true);
   });
 
   it("scores prompt readiness from saved stories and reps", () => {
@@ -557,5 +576,20 @@ describe("interview prep helpers", () => {
       true,
     );
     expect(INTERVIEW_RESCUE_SCRIPTS.length).toBeGreaterThan(4);
+  });
+
+  it("finds adjacent prompts only from the imported question bank", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "deliver-results",
+    )!;
+    const related = getRelatedQuestionPrompts(question, 3);
+
+    expect(related.length).toBeGreaterThan(0);
+    expect(related).not.toContain(question.prompt);
+    expect(
+      related.every((prompt) =>
+        INTERVIEW_QUESTIONS.some((entry) => entry.prompt === prompt),
+      ),
+    ).toBe(true);
   });
 });

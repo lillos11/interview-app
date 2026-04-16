@@ -16,7 +16,6 @@ import {
 } from "@/lib/amazonPrepDeck";
 import {
   buildEliteStoryDraft,
-  buildCurveballPack,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -33,6 +32,7 @@ import {
   getPromptReadiness,
   getQuestionCategoriesByFamily,
   getQuestionCategoryById,
+  getRelatedQuestionPrompts,
   getStoryCoverage,
   getStoryCategoryCoverage,
   getTopPassBlockers,
@@ -63,6 +63,7 @@ import {
 } from "@/lib/interview";
 import BarRaiserStudio from "@/components/BarRaiserStudio";
 import ExecutiveCoachPanel from "@/components/ExecutiveCoachPanel";
+import StoryRehearsalStudio from "@/components/StoryRehearsalStudio";
 
 type InterviewTab = PrepTabTarget;
 type CompetencyFilter = CompetencyId | "all";
@@ -528,9 +529,19 @@ export default function HomePage() {
         : [],
     [currentQuestionBankEntry],
   );
-  const currentDrillCurveball = useMemo(
-    () => (currentDrillQuestion ? buildCurveballPack(currentDrillQuestion) : null),
+  const currentDrillAdjacentPrompts = useMemo(
+    () =>
+      currentDrillQuestion
+        ? getRelatedQuestionPrompts(currentDrillQuestion, 3)
+        : [],
     [currentDrillQuestion],
+  );
+  const currentQuestionAdjacentPrompts = useMemo(
+    () =>
+      currentQuestionBankEntry
+        ? getRelatedQuestionPrompts(currentQuestionBankEntry, 3)
+        : [],
+    [currentQuestionBankEntry],
   );
 
   const nextMoves = useMemo(() => {
@@ -2279,6 +2290,10 @@ export default function HomePage() {
               </div>
             </div>
 
+            <div className="mt-5">
+              <StoryRehearsalStudio story={storyDraft} />
+            </div>
+
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
               <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                 <div className="flex items-center justify-between gap-3">
@@ -2337,17 +2352,24 @@ export default function HomePage() {
 
               <div className="rounded-[24px] bg-slate-950 p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                  Bar-raiser follow-ups
+                  Source-bank prompts this story should survive
                 </p>
                 <div className="mt-4 space-y-3 text-sm leading-6 text-white/88">
-                  {liveStoryPressureTest.pressureQuestions.map((question) => (
-                    <div
-                      key={question}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                      {question}
+                  {liveStoryPressureTest.pressureQuestions.length ? (
+                    liveStoryPressureTest.pressureQuestions.map((question) => (
+                      <div
+                        key={question}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                      >
+                        {question}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      Tag the story to an Amazon category and the matching
+                      source-bank prompts will show up here for rehearsal.
                     </div>
-                  ))}
+                  )}
                 </div>
 
                 <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 p-4">
@@ -2572,21 +2594,13 @@ export default function HomePage() {
                           ))}
                         </div>
                       </div>
-                      {currentDrillCurveball ? (
-                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-950">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
-                            Curveball pack
-                          </p>
-                          <p className="mt-2">
-                            <span className="font-semibold">Attack angle:</span>{" "}
-                            {currentDrillCurveball.angle}
-                          </p>
-                          <p className="mt-2">
-                            <span className="font-semibold">Trap:</span>{" "}
-                            {currentDrillCurveball.trap}
+                      {currentDrillAdjacentPrompts.length ? (
+                        <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/80 p-4 text-sm leading-6 text-cyan-950">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
+                            More prompts from your source bank
                           </p>
                           <div className="mt-3 space-y-2">
-                            {currentDrillCurveball.prompts.map((prompt) => (
+                            {currentDrillAdjacentPrompts.map((prompt) => (
                               <div
                                 key={prompt}
                                 className="rounded-2xl bg-white p-3 text-slate-700"
@@ -2594,9 +2608,6 @@ export default function HomePage() {
                                 {prompt}
                               </div>
                             ))}
-                          </div>
-                          <div className="mt-3 rounded-2xl bg-slate-950 p-3 text-white">
-                            Recovery cue: {currentDrillCurveball.recoveryCue}
                           </div>
                         </div>
                       ) : null}
@@ -2953,23 +2964,23 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-950">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
-                      If they throw a curveball
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      {buildCurveballPack(currentQuestionBankEntry).prompts.map(
-                        (prompt) => (
+                  {currentQuestionAdjacentPrompts.length ? (
+                    <div className="mt-4 rounded-[22px] border border-cyan-200 bg-cyan-50/80 p-4 text-sm leading-6 text-cyan-950">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
+                        More prompts from the same source bank
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {currentQuestionAdjacentPrompts.map((prompt) => (
                           <div
                             key={prompt}
                             className="rounded-2xl bg-white p-3 text-slate-700"
                           >
                             {prompt}
                           </div>
-                        ),
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="mt-4 rounded-[22px] border border-dashed border-slate-300 p-4 text-sm text-slate-600">
