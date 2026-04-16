@@ -2,16 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEliteStoryDraft,
+  buildCurveballPack,
   buildStoryPressureTest,
   coerceInterviewProgress,
   createInitialInterviewProgress,
   deleteStarStory,
   GAME_DAY_CHECKLIST,
   getAmazonCoverageSummary,
+  getPromptReadiness,
   getStoryCategoryCoverage,
+  getTopPassBlockers,
   getOverallReadiness,
   INTERVIEW_QUESTION_CATEGORIES,
   INTERVIEW_QUESTIONS,
+  INTERVIEW_RESCUE_SCRIPTS,
   pickDrillQuestions,
   recordBarRaiserReview,
   recordDrillResult,
@@ -494,5 +498,64 @@ describe("interview prep helpers", () => {
     expect(pressureTest.vulnerabilities.length).toBeGreaterThan(0);
     expect(pressureTest.upgradeMoves.length).toBeGreaterThan(0);
     expect(pressureTest.pressureQuestions.length).toBeGreaterThan(0);
+  });
+
+  it("scores prompt readiness from saved stories and reps", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "deliver-results",
+    )!;
+    const baseline = createInitialInterviewProgress(
+      new Date("2026-03-04T12:00:00.000Z"),
+    );
+
+    expect(getPromptReadiness(baseline, question).label).toBe("uncovered");
+
+    const withStory = saveStarStory(baseline, {
+      competency: "ownership",
+      categoryTags: ["deliver-results"],
+      title: "Recovery story",
+      situation: "A key area was underperforming and service risk was rising.",
+      task: "I needed to recover output without creating a new failure elsewhere.",
+      action:
+        "I reset staffing, changed the inspection rhythm, and coached leads on the same recovery playbook.",
+      result:
+        "Throughput recovered from 80 percent to 110 percent of plan and defects dropped 35 percent.",
+      reflection:
+        "I turned the intervention into standard work so the same miss would surface earlier.",
+    });
+
+    const partial = getPromptReadiness(withStory, question);
+    expect(partial.label).toBe("at_risk");
+
+    const withRep = recordDrillResult(
+      withStory,
+      question,
+      "strong",
+      new Date("2026-03-05T12:00:00.000Z"),
+    );
+
+    const improved = getPromptReadiness(withRep, question);
+    expect(improved.label).not.toBe("uncovered");
+    expect(improved.score).toBeGreaterThan(partial.score);
+  });
+
+  it("builds curveball packs, pass blockers, and rescue scripts", () => {
+    const managerQuestion = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.managerOnly,
+    )!;
+    const curveballPack = buildCurveballPack(managerQuestion);
+    const blockers = getTopPassBlockers(
+      createInitialInterviewProgress(),
+      "lp",
+      "deliver-results",
+    );
+
+    expect(curveballPack.prompts.length).toBeGreaterThan(2);
+    expect(curveballPack.trap.length).toBeGreaterThan(10);
+    expect(blockers.some((blocker) => blocker.tab === "star_lab")).toBe(true);
+    expect(blockers.some((blocker) => blocker.tab === "bar_raiser")).toBe(
+      true,
+    );
+    expect(INTERVIEW_RESCUE_SCRIPTS.length).toBeGreaterThan(4);
   });
 });

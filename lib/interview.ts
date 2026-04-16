@@ -59,6 +59,14 @@ export type DrillRating = "needs_work" | "solid" | "strong";
 export type InterviewSourceFamily = "lp" | "functional";
 export type CompanyTrack = "amazon";
 export type InterviewerLensId = "hrbp" | "l6_ops" | "l7_bar_raiser";
+export type PrepTabTarget =
+  | "cockpit"
+  | "star_lab"
+  | "drills"
+  | "bar_raiser"
+  | "executive_coach"
+  | "frameworks"
+  | "game_day";
 
 export interface InterviewQuestion {
   id: string;
@@ -224,6 +232,39 @@ export interface StoryPressureTest {
   upgradeMoves: string[];
 }
 
+export interface PromptReadiness {
+  questionId: string;
+  score: number;
+  label: "ready" | "at_risk" | "uncovered";
+  detail: string;
+  matchedStoryIds: string[];
+  strongStoryIds: string[];
+}
+
+export interface InterviewPassBlocker {
+  id: string;
+  title: string;
+  detail: string;
+  tab: PrepTabTarget;
+  actionLabel: string;
+  urgency: "high" | "medium";
+}
+
+export interface CurveballPack {
+  angle: string;
+  trap: string;
+  prompts: string[];
+  recoveryCue: string;
+}
+
+export interface RescueScript {
+  id: string;
+  title: string;
+  scenario: string;
+  script: string;
+  whyItWorks: string;
+}
+
 export interface StoryReviewDimension {
   id: "clarity" | "ownership" | "action" | "evidence" | "reflection";
   label: string;
@@ -307,6 +348,72 @@ export const NEGOTIATION_REMINDERS = [
   "Anchor on scope, impact, and market data rather than personal need.",
   "Ask about level, bonus, equity refresh, and review cadence before accepting the first package.",
   "Close loops in writing after the call so details do not drift.",
+] as const;
+
+export const INTERVIEW_RESCUE_SCRIPTS: readonly RescueScript[] = [
+  {
+    id: "buy-time",
+    title: "Buy a few seconds cleanly",
+    scenario: "You need a beat to organize the answer.",
+    script:
+      "Let me take a second and choose the strongest example, because I want to answer that precisely.",
+    whyItWorks:
+      "It sounds deliberate and senior, not panicked, and buys you a little structure time.",
+  },
+  {
+    id: "clarify-angle",
+    title: "Clarify the angle",
+    scenario: "The question is broad and could go in multiple directions.",
+    script:
+      "I can answer that from a people-leadership angle or an operating-results angle. I will take the operating-results angle unless you would prefer the other.",
+    whyItWorks:
+      "You reduce ambiguity, show judgment, and avoid wasting time on the wrong story.",
+  },
+  {
+    id: "no-perfect-example",
+    title: "When you do not have the perfect example",
+    scenario: "You do not have an exact match for the wording of the question.",
+    script:
+      "I do not have a perfect one-for-one example, but I do have a close situation that tests the same judgment. I will use that and make the tradeoff explicit.",
+    whyItWorks:
+      "You stay honest without freezing, and you frame the example before the interviewer does.",
+  },
+  {
+    id: "missing-metric",
+    title: "When you do not remember the exact number",
+    scenario: "You know the impact but not the exact metric offhand.",
+    script:
+      "I do not want to guess at the exact number. What I can say confidently is that the direction of change was material, and the concrete result was [insert real scope or business effect].",
+    whyItWorks:
+      "You protect credibility instead of bluffing and still land the outcome.",
+  },
+  {
+    id: "interrupted",
+    title: "When you get interrupted",
+    scenario: "The interviewer cuts in before you land the result.",
+    script:
+      "Absolutely. The short version is this: I made the call to [decision], the result was [outcome], and I can unpack the action path if useful.",
+    whyItWorks:
+      "You recover control by compressing to the business signal immediately.",
+  },
+  {
+    id: "blanked-follow-up",
+    title: "When a follow-up catches you flat-footed",
+    scenario: "The interviewer attacks a weak seam in the story.",
+    script:
+      "That is the right follow-up. The tradeoff I was managing was [tradeoff], and the reason I still chose that path was [decision rule].",
+    whyItWorks:
+      "It re-centers the answer around judgment, which is what senior interviewers usually care about.",
+  },
+  {
+    id: "close-strong",
+    title: "Close the answer like a senior operator",
+    scenario: "You want to finish strong instead of trailing off.",
+    script:
+      "The result was [metric or business effect], and the bigger lesson was [lesson], which is now how I approach similar situations.",
+    whyItWorks:
+      "It closes with proof and repeatability instead of letting the answer die softly.",
+  },
 ] as const;
 
 export const INTERVIEWER_LENSES: readonly InterviewerLens[] = [
@@ -2339,6 +2446,325 @@ export function buildStoryPressureTest(
     pressureQuestions: [...new Set(pressureQuestions)].slice(0, 4),
     upgradeMoves: [...new Set(upgradeMoves)].slice(0, 4),
   };
+}
+
+export function getPromptReadiness(
+  progress: InterviewPrepProgress,
+  question: InterviewQuestion,
+): PromptReadiness {
+  const matchedStories = progress.stories.filter((story) =>
+    story.categoryTags.includes(question.sourceCategoryId),
+  );
+  const strongStories = matchedStories.filter(
+    (story) => reviewStarStory(story).score >= 78,
+  );
+  const recentRep = progress.drillHistory.find(
+    (entry) => entry.questionId === question.id,
+  );
+  const recentStrongRep = progress.barRaiserHistory.find(
+    (entry) => entry.questionId === question.id && entry.score >= 75,
+  );
+
+  let score = 0;
+
+  if (matchedStories.length) {
+    score += 40;
+  }
+  if (strongStories.length) {
+    score += 30;
+  }
+  if (recentRep) {
+    score += recentRep.rating === "strong" ? 18 : recentRep.rating === "solid" ? 12 : 6;
+  }
+  if (recentStrongRep) {
+    score += 18;
+  }
+
+  const clampedScore = clampScore(score);
+
+  if (clampedScore >= 75) {
+    return {
+      questionId: question.id,
+      score: clampedScore,
+      label: "ready",
+      detail:
+        "You have a tagged story and enough supporting reps that this prompt should not surprise you.",
+      matchedStoryIds: matchedStories.map((story) => story.id),
+      strongStoryIds: strongStories.map((story) => story.id),
+    };
+  }
+
+  if (clampedScore >= 40) {
+    return {
+      questionId: question.id,
+      score: clampedScore,
+      label: "at_risk",
+      detail:
+        "You have partial coverage here, but the story or reps still look fragile under hard follow-up.",
+      matchedStoryIds: matchedStories.map((story) => story.id),
+      strongStoryIds: strongStories.map((story) => story.id),
+    };
+  }
+
+  return {
+    questionId: question.id,
+    score: clampedScore,
+    label: "uncovered",
+    detail:
+      "You do not yet have a credible saved story or enough reps tied to this prompt.",
+    matchedStoryIds: [],
+    strongStoryIds: [],
+  };
+}
+
+export function buildCurveballPack(question: InterviewQuestion): CurveballPack {
+  const prompts: string[] = [];
+  let angle = "Judgment under pressure";
+  let trap =
+    "If you stay generic, the interviewer will assume the result was luck, not skill.";
+  let recoveryCue =
+    "Name the stake, the decision rule, and the result before you add extra context.";
+
+  switch (question.competency) {
+    case "leadership":
+      angle = "People leadership under stress";
+      trap =
+        "Candidates sound inflated here when they talk about team success without naming their direct leadership move.";
+      recoveryCue =
+        "Say what you coached, what standard you enforced, and what changed in the team after you intervened.";
+      prompts.push(
+        "What would your team say you did that actually changed performance?",
+        "Who pushed back on your approach, and how did you handle that without losing trust?",
+        "What became standard work after your intervention?",
+      );
+      break;
+    case "ownership":
+      angle = "Personal accountability";
+      trap =
+        "Ownership answers collapse when the interviewer cannot tell what you personally owned versus what the team did.";
+      recoveryCue =
+        'Use "I" aggressively here: what you chose, escalated, deprioritized, or refused to ignore.';
+      prompts.push(
+        "What did you personally own that nobody else was going to fix?",
+        "What did you deliberately deprioritize to protect the outcome?",
+        "What would have broken if you had waited another day?",
+      );
+      break;
+    case "problem_solving":
+      angle = "Tradeoff logic";
+      trap =
+        "If you only explain the outcome, a strong interviewer will assume you skipped the hard choice.";
+      recoveryCue =
+        "State the options you considered, why you rejected one, and the decision rule you used.";
+      prompts.push(
+        "Which option did you reject, and why was it the wrong call?",
+        "What assumption turned out to be wrong, and how did you catch it?",
+        "If the result had gone the other way, what would you say was the flaw in your decision?",
+      );
+      break;
+    case "stakeholder_management":
+      angle = "Influence without authority";
+      trap =
+        "Stakeholder answers sound weak if there is no tension, disagreement, or credibility risk in the story.";
+      recoveryCue =
+        "Name the disagreement, the influence move, and how you got alignment without hiding the tension.";
+      prompts.push(
+        "Who was hardest to win over, and why were they unconvinced?",
+        "What did you change in your approach when the first alignment attempt did not land?",
+        "How did you protect momentum without steamrolling the relationship?",
+      );
+      break;
+    case "adaptability":
+      angle = "Reset speed";
+      trap =
+        "Adaptability answers die when they sound reactive instead of disciplined.";
+      recoveryCue =
+        "Describe the trigger, the reset, and how you prevented confusion while conditions changed.";
+      prompts.push(
+        "What changed so late that your original plan stopped working?",
+        "How did you decide what not to change while you were pivoting?",
+        "What did you learn that changed how you operate now?",
+      );
+      break;
+    case "technical_depth":
+      angle = "Analytical depth";
+      trap =
+        "Depth answers unravel when you cannot defend the root cause or tradeoff beyond a surface description.";
+      recoveryCue =
+        "Walk from symptom to root cause, then explain the tradeoff in plain language.";
+      prompts.push(
+        "How do you know that was the real root cause and not just the visible symptom?",
+        "What metric or signal did you trust most, and what signal was noisy?",
+        "What technical tradeoff would you revisit if you rebuilt that now?",
+      );
+      break;
+    default:
+      angle = "Executive storytelling";
+      trap =
+        "If the answer opens slowly or closes weakly, the interviewer will tune out before the proof lands.";
+      recoveryCue =
+        "Open with stake and close with metric plus lesson. Everything else is support.";
+      prompts.push(
+        "Why should this story make me more confident in you for the role you want next?",
+        "What is the single most important business effect from this example?",
+        "What is the one sentence version if you had to answer under real time pressure?",
+      );
+      break;
+  }
+
+  if (question.managerOnly) {
+    prompts.push(
+      "What was the hardest people call you had to make in this situation?",
+      "How did you make the standard repeatable through other leaders, not just your own effort?",
+    );
+    trap =
+      "Manager-level prompts expose candidates who can talk about outcomes but not talent, standards, or repeatability.";
+  }
+
+  return {
+    angle,
+    trap,
+    prompts: prompts.slice(0, 4),
+    recoveryCue,
+  };
+}
+
+export function getTopPassBlockers(
+  progress: InterviewPrepProgress,
+  selectedFamily?: InterviewSourceFamily,
+  selectedCategoryId?: string | null,
+): InterviewPassBlocker[] {
+  const blockers: InterviewPassBlocker[] = [];
+  const averageBarRaiserScore = progress.barRaiserHistory.length
+    ? Math.round(
+        progress.barRaiserHistory.reduce((sum, review) => sum + review.score, 0) /
+          progress.barRaiserHistory.length,
+      )
+    : null;
+  const amazonCoverage = getAmazonCoverageSummary(progress);
+  const weakestCompetencyId = getWeakestCompetency(progress);
+  const weakestCompetency = weakestCompetencyId
+    ? getCompetencyById(weakestCompetencyId)
+    : null;
+  const pitchFields = Object.values(progress.pitch).filter(
+    (value) => value.trim().length > 0,
+  ).length;
+
+  if (pitchFields < 4) {
+    blockers.push({
+      id: "pitch-pack",
+      title: "Your opener is still incomplete.",
+      detail:
+        "If tell-me-about-yourself is not tight, you start the loop behind before the real questions even begin.",
+      tab: "cockpit",
+      actionLabel: "Finish pitch",
+      urgency: "high",
+    });
+  }
+
+  if (!progress.stories.length) {
+    blockers.push({
+      id: "story-bank",
+      title: "You do not have a real story bank yet.",
+      detail:
+        "Without saved STAR stories, you are still improvising instead of reusing proof.",
+      tab: "star_lab",
+      actionLabel: "Build stories",
+      urgency: "high",
+    });
+  }
+
+  if (!progress.barRaiserHistory.length) {
+    blockers.push({
+      id: "no-harsh-reviews",
+      title: "You have not logged any harsh reviews.",
+      detail:
+        "If no answers have been stress-tested, you do not know what breaks under pressure yet.",
+      tab: "bar_raiser",
+      actionLabel: "Run harsh review",
+      urgency: "high",
+    });
+  } else if (averageBarRaiserScore !== null && averageBarRaiserScore < 75) {
+    blockers.push({
+      id: "low-bar-raiser-average",
+      title: "Recent bar-raiser scores are still too soft.",
+      detail: `Your recent average is ${averageBarRaiserScore}%. That is not where elite interview consistency lives.`,
+      tab: "bar_raiser",
+      actionLabel: "Re-record weak answer",
+      urgency: "high",
+    });
+  }
+
+  if (amazonCoverage.managerRepCount < 3) {
+    blockers.push({
+      id: "manager-reps",
+      title: "Manager-level pressure is undertrained.",
+      detail:
+        "You need more manager-only reps so people leadership, judgment, and standard work survive follow-up pressure.",
+      tab: "drills",
+      actionLabel: "Run manager drill",
+      urgency: "high",
+    });
+  }
+
+  if (selectedCategoryId) {
+    const storiesForCategory = progress.stories.filter((story) =>
+      story.categoryTags.includes(selectedCategoryId),
+    );
+
+    if (!storiesForCategory.length) {
+      blockers.push({
+        id: `category-${selectedCategoryId}`,
+        title: "The active category still has no saved proof.",
+        detail: `You are browsing ${getQuestionCategoryById(selectedCategoryId).label} without a tagged story to carry the lane.`,
+        tab: "star_lab",
+        actionLabel: "Write category story",
+        urgency: "high",
+      });
+    }
+  }
+
+  if (
+    selectedFamily &&
+    selectedFamily === "lp" &&
+    amazonCoverage.lpCovered < Math.ceil(amazonCoverage.lpTotal / 2)
+  ) {
+    blockers.push({
+      id: "lp-breadth",
+      title: "Leadership Principle breadth is still thin.",
+      detail:
+        "Too much of your prep is concentrated in a few safe categories, which makes the loop feel narrower than it should.",
+      tab: "frameworks",
+      actionLabel: "Broaden LP coverage",
+      urgency: "medium",
+    });
+  }
+
+  if (weakestCompetency) {
+    blockers.push({
+      id: `weak-${weakestCompetency.id}`,
+      title: `Your weakest lane is ${weakestCompetency.title.toLowerCase()}.`,
+      detail:
+        "That is the signal an interviewer is most likely to expose if the loop gets adversarial.",
+      tab: "executive_coach",
+      actionLabel: "Coach this gap",
+      urgency: "medium",
+    });
+  }
+
+  if (progress.checklistDoneIds.length < Math.ceil(GAME_DAY_CHECKLIST.length / 2)) {
+    blockers.push({
+      id: "game-day-rhythm",
+      title: "Game-day prep is still too loose.",
+      detail:
+        "You have not locked enough logistics and final-day prep steps to make the interview day feel controlled.",
+      tab: "game_day",
+      actionLabel: "Finish game-day prep",
+      urgency: "medium",
+    });
+  }
+
+  return blockers.slice(0, 5);
 }
 
 export function buildPitchPreview(pitch: Partial<PitchPack>): string {

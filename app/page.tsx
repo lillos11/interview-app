@@ -16,6 +16,7 @@ import {
 } from "@/lib/amazonPrepDeck";
 import {
   buildEliteStoryDraft,
+  buildCurveballPack,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -29,13 +30,16 @@ import {
   getCompetencyConfidence,
   getInterviewQuestionById,
   getOverallReadiness,
+  getPromptReadiness,
   getQuestionCategoriesByFamily,
   getQuestionCategoryById,
   getStoryCoverage,
   getStoryCategoryCoverage,
+  getTopPassBlockers,
   getWeakestCompetency,
   INTERVIEW_COMPETENCIES,
   INTERVIEW_QUESTIONS,
+  INTERVIEW_RESCUE_SCRIPTS,
   INTERVIEW_SOURCE_FAMILY_LABELS,
   INTERVIEW_STAGES,
   INTERVIEW_STORAGE_KEY,
@@ -54,19 +58,13 @@ import {
   type InterviewPrepProgress,
   type InterviewQuestion,
   type InterviewSourceFamily,
+  type PrepTabTarget,
   type StoryDraft,
 } from "@/lib/interview";
 import BarRaiserStudio from "@/components/BarRaiserStudio";
 import ExecutiveCoachPanel from "@/components/ExecutiveCoachPanel";
 
-type InterviewTab =
-  | "cockpit"
-  | "star_lab"
-  | "drills"
-  | "bar_raiser"
-  | "executive_coach"
-  | "frameworks"
-  | "game_day";
+type InterviewTab = PrepTabTarget;
 type CompetencyFilter = CompetencyId | "all";
 type CategoryFilter = string | "all";
 type EditableStoryField =
@@ -491,6 +489,49 @@ export default function HomePage() {
       }),
     [progress, storyCoverage],
   );
+  const passBlockers = useMemo(
+    () =>
+      getTopPassBlockers(
+        progress,
+        selectedFamily,
+        selectedCategory?.id ?? null,
+      ),
+    [progress, selectedCategory, selectedFamily],
+  );
+  const currentQuestionReadiness = useMemo(
+    () =>
+      currentQuestionBankEntry
+        ? getPromptReadiness(progress, currentQuestionBankEntry)
+        : null,
+    [currentQuestionBankEntry, progress],
+  );
+  const currentQuestionMatchedStories = useMemo(() => {
+    if (!currentQuestionBankEntry) {
+      return [];
+    }
+
+    return progress.stories
+      .filter((story) =>
+        story.categoryTags.includes(currentQuestionBankEntry.sourceCategoryId),
+      )
+      .sort(
+        (left, right) => reviewStarStory(right).score - reviewStarStory(left).score,
+      )
+      .slice(0, 3);
+  }, [currentQuestionBankEntry, progress.stories]);
+  const currentQuestionPrepDeckStories = useMemo(
+    () =>
+      currentQuestionBankEntry
+        ? getPrepDeckStoriesForCategory(
+            currentQuestionBankEntry.sourceCategoryId,
+          ).slice(0, 3)
+        : [],
+    [currentQuestionBankEntry],
+  );
+  const currentDrillCurveball = useMemo(
+    () => (currentDrillQuestion ? buildCurveballPack(currentDrillQuestion) : null),
+    [currentDrillQuestion],
+  );
 
   const nextMoves = useMemo(() => {
     const moves: string[] = [];
@@ -651,6 +692,10 @@ export default function HomePage() {
     setBarRaiserQuestionId(question.id);
     resetPracticeState();
     setActiveTab("bar_raiser");
+  };
+
+  const openPrepTab = (tab: PrepTabTarget) => {
+    setActiveTab(tab);
   };
 
   const rotateQuestionBank = (step: number) => {
@@ -1258,6 +1303,53 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Pass blockers
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Close the gaps most likely to cost you the interview.
+              </h2>
+              <div className="mt-4 space-y-3">
+                {passBlockers.map((blocker) => (
+                  <div
+                    key={blocker.id}
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-950">
+                            {blocker.title}
+                          </p>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]",
+                              blocker.urgency === "high"
+                                ? "bg-rose-100 text-rose-900"
+                                : "bg-amber-100 text-amber-900",
+                            )}
+                          >
+                            {blocker.urgency}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {blocker.detail}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openPrepTab(blocker.tab)}
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                      >
+                        {blocker.actionLabel}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </article>
 
@@ -2480,6 +2572,34 @@ export default function HomePage() {
                           ))}
                         </div>
                       </div>
+                      {currentDrillCurveball ? (
+                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-950">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
+                            Curveball pack
+                          </p>
+                          <p className="mt-2">
+                            <span className="font-semibold">Attack angle:</span>{" "}
+                            {currentDrillCurveball.angle}
+                          </p>
+                          <p className="mt-2">
+                            <span className="font-semibold">Trap:</span>{" "}
+                            {currentDrillCurveball.trap}
+                          </p>
+                          <div className="mt-3 space-y-2">
+                            {currentDrillCurveball.prompts.map((prompt) => (
+                              <div
+                                key={prompt}
+                                className="rounded-2xl bg-white p-3 text-slate-700"
+                              >
+                                {prompt}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 rounded-2xl bg-slate-950 p-3 text-white">
+                            Recovery cue: {currentDrillCurveball.recoveryCue}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2740,6 +2860,126 @@ export default function HomePage() {
 
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Prompt readiness
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Know whether this exact prompt is covered or exposed.
+              </h2>
+              {currentQuestionBankEntry && currentQuestionReadiness ? (
+                <>
+                  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={classNames(
+                          "rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]",
+                          currentQuestionReadiness.label === "ready"
+                            ? "bg-emerald-100 text-emerald-900"
+                            : currentQuestionReadiness.label === "at_risk"
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-rose-100 text-rose-900",
+                        )}
+                      >
+                        {currentQuestionReadiness.label.replace("_", " ")}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {currentQuestionReadiness.score}% readiness
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      {currentQuestionReadiness.detail}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {currentQuestionMatchedStories.length ? (
+                      currentQuestionMatchedStories.map((story) => (
+                        <div
+                          key={story.id}
+                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-950">
+                                  {story.title}
+                                </p>
+                                <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                                  {reviewStarStory(story).score}%
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-slate-700">
+                                {story.result || story.reflection || story.action}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => loadStoryForEdit(story.id)}
+                              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                            >
+                              Edit story
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : currentQuestionPrepDeckStories.length ? (
+                      currentQuestionPrepDeckStories.map((story) => (
+                        <div
+                          key={story.id}
+                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-950">
+                                Prep-deck fallback: {story.title}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-700">
+                                {story.challenge}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => loadPrepDeckStory(story.id)}
+                              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                            >
+                              Load fallback
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                        No saved story is tagged to this prompt yet. Treat this as exposed until you build one.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-950">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
+                      If they throw a curveball
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {buildCurveballPack(currentQuestionBankEntry).prompts.map(
+                        (prompt) => (
+                          <div
+                            key={prompt}
+                            className="rounded-2xl bg-white p-3 text-slate-700"
+                          >
+                            {prompt}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-[22px] border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                  Choose a prompt to see whether you are genuinely covered or still exposed.
+                </div>
+              )}
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Current filter summary
               </p>
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
@@ -2907,6 +3147,38 @@ export default function HomePage() {
                     </div>
                   );
                 })}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Rescue scripts
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Prepare for the ugly moments, not just the clean answers.
+              </h2>
+              <div className="mt-4 space-y-3">
+                {INTERVIEW_RESCUE_SCRIPTS.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-950">
+                        {item.title}
+                      </p>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {item.scenario}
+                      </span>
+                    </div>
+                    <div className="mt-3 rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white">
+                      {item.script}
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      {item.whyItWorks}
+                    </p>
+                  </div>
+                ))}
               </div>
             </article>
 
