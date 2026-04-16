@@ -307,6 +307,15 @@ export interface EliteStoryWriterDraft {
   polishNotes: string[];
 }
 
+export interface EliteStoryPolish {
+  draft: StoryDraft;
+  polishedReview: StoryReview;
+  scoreDelta: number;
+  headline: string;
+  adjustments: string[];
+  remainingGaps: string[];
+}
+
 export interface InterviewPrepProgress {
   version: 1;
   createdAt: string;
@@ -1575,6 +1584,92 @@ function extractSentenceLikeSegments(text: string): string[] {
     .filter(Boolean);
 }
 
+function tightenStorySituation(text: string): string {
+  const segments = extractSentenceLikeSegments(text);
+
+  if (!segments.length) {
+    return "";
+  }
+
+  return segments.slice(0, 2).map(ensureSentence).join(" ");
+}
+
+function tightenStoryTask(text: string): string {
+  const trimmed = normalizeStoryField(text);
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    /\b(i needed|i had to|my objective|my goal|i was responsible)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return ensureSentence(trimmed);
+  }
+
+  const lowered =
+    trimmed.charAt(0).toLowerCase() + trimmed.slice(1).replace(/[.!?]+$/, "");
+
+  return ensureSentence(`I was responsible for ${lowered}`);
+}
+
+function addSequenceCue(segment: string, cue: string): string {
+  const trimmed = normalizeStoryField(segment);
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^(first|then|next|finally|after that|from there)[,:]?\s+/i.test(trimmed)) {
+    return ensureSentence(trimmed);
+  }
+
+  return ensureSentence(`${cue}, ${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`);
+}
+
+function tightenStoryAction(text: string): string {
+  const segments = extractSentenceLikeSegments(text);
+
+  if (!segments.length) {
+    return "";
+  }
+
+  if (segments.length === 1) {
+    return ensureSentence(segments[0]);
+  }
+
+  const cues = ["First", "Then", "Next", "Finally"];
+
+  return segments
+    .slice(0, 4)
+    .map((segment, index) =>
+      addSequenceCue(segment, cues[Math.min(index, cues.length - 1)]),
+    )
+    .join(" ");
+}
+
+function tightenStoryResult(text: string): string {
+  const segments = extractSentenceLikeSegments(text);
+
+  if (!segments.length) {
+    return "";
+  }
+
+  return segments.slice(0, 2).map(ensureSentence).join(" ");
+}
+
+function tightenStoryReflection(text: string): string {
+  const segments = extractSentenceLikeSegments(text);
+
+  if (!segments.length) {
+    return "";
+  }
+
+  return ensureSentence(segments[0]);
+}
+
 function buildStoryVerdictLabel(score: number): StoryReview["verdictLabel"] {
   if (score >= 85) {
     return "Elite";
@@ -2208,6 +2303,117 @@ export function buildStarCoachTips(story: Partial<StoryDraft>): string[] {
   }
 
   return [...new Set(tips)].slice(0, 4);
+}
+
+export function buildEliteStoryPolish(
+  story: Partial<StoryDraft>,
+): EliteStoryPolish {
+  const safe = sanitizeStoryDraft(story);
+  const originalReview = reviewStarStory(safe);
+  const draftSuggestion = buildEliteStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    titleHint: safe.title,
+    context: safe.situation,
+    stakes: safe.task,
+    actions: safe.action,
+    result: safe.result,
+    lesson: safe.reflection,
+  });
+
+  const polishedDraft = sanitizeStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    title:
+      safe.title.trim() ||
+      (!hasPlaceholder(draftSuggestion.draft.title)
+        ? draftSuggestion.draft.title
+        : ""),
+    situation: safe.situation.trim()
+      ? tightenStorySituation(safe.situation)
+      : !hasPlaceholder(draftSuggestion.draft.situation)
+        ? tightenStorySituation(draftSuggestion.draft.situation)
+        : "",
+    task: safe.task.trim()
+      ? tightenStoryTask(safe.task)
+      : !hasPlaceholder(draftSuggestion.draft.task)
+        ? tightenStoryTask(draftSuggestion.draft.task)
+        : "",
+    action: safe.action.trim()
+      ? tightenStoryAction(safe.action)
+      : !hasPlaceholder(draftSuggestion.draft.action)
+        ? tightenStoryAction(draftSuggestion.draft.action)
+        : "",
+    result: safe.result.trim()
+      ? tightenStoryResult(safe.result)
+      : !hasPlaceholder(draftSuggestion.draft.result)
+        ? tightenStoryResult(draftSuggestion.draft.result)
+        : "",
+    reflection: safe.reflection.trim()
+      ? tightenStoryReflection(safe.reflection)
+      : !hasPlaceholder(draftSuggestion.draft.reflection)
+        ? tightenStoryReflection(draftSuggestion.draft.reflection)
+        : "",
+  });
+
+  const polishedReview = reviewStarStory(polishedDraft);
+  const scoreDelta = polishedReview.score - originalReview.score;
+  const adjustments: string[] = [];
+
+  if (polishedDraft.situation !== safe.situation) {
+    adjustments.push(
+      "Trimmed the opening so the setup reaches the stakes faster and drops extra scene-setting.",
+    );
+  }
+  if (polishedDraft.task !== safe.task) {
+    adjustments.push(
+      "Rewrote the task so your ownership is explicit instead of implied.",
+    );
+  }
+  if (polishedDraft.action !== safe.action) {
+    adjustments.push(
+      "Tightened the action sequence so the story reads like deliberate leadership, not a rough memory dump.",
+    );
+  }
+  if (polishedDraft.result !== safe.result) {
+    adjustments.push(
+      "Sharpened the result so the ending lands faster and sounds more credible.",
+    );
+  }
+  if (polishedDraft.reflection !== safe.reflection) {
+    adjustments.push(
+      "Condensed the lesson so the operating change is easier to hear.",
+    );
+  }
+
+  const remainingGaps = [
+    ...polishedReview.misses,
+    ...draftSuggestion.missingPieces.filter(
+      (item) =>
+        !/\[insert|\[state/i.test(
+          `${polishedDraft.task} ${polishedDraft.result} ${polishedDraft.reflection}`,
+        ) || !/\[insert|\[state/i.test(item),
+    ),
+  ];
+  const headline =
+    scoreDelta > 0
+      ? `Elite polish lifts the story by ${scoreDelta} point${scoreDelta === 1 ? "" : "s"}, but it still needs real proof where the facts are thin.`
+      : polishedReview.score >= 85
+        ? "This story is already strong. The polish pass mainly tightens the language so it sounds more senior out loud."
+        : "The wording is tighter now, but the remaining gap is in the facts, proof, or tradeoff quality rather than the phrasing.";
+
+  return {
+    draft: polishedDraft,
+    polishedReview,
+    scoreDelta,
+    headline,
+    adjustments: adjustments.length
+      ? adjustments
+      : [
+          "The story already had a solid structure, so the main lift now is better proof and more deliberate rehearsal.",
+        ],
+    remainingGaps: [...new Set(remainingGaps)].slice(0, 5),
+  };
 }
 
 export function reviewInterviewAnswer(

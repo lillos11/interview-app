@@ -17,6 +17,7 @@ import {
 } from "@/lib/amazonPrepDeck";
 import {
   buildEliteStoryDraft,
+  buildEliteStoryPolish,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -537,6 +538,10 @@ export default function HomePage() {
     () => buildStarCoachTips(storyDraft),
     [storyDraft],
   );
+  const eliteStoryPolish = useMemo(
+    () => buildEliteStoryPolish(storyDraft),
+    [storyDraft],
+  );
   const liveStoryPressureTest = useMemo(
     () => buildStoryPressureTest(storyDraft),
     [storyDraft],
@@ -901,6 +906,10 @@ export default function HomePage() {
   const loadStoryWriterDraft = () => {
     setEditingStoryId(null);
     setStoryDraft(storyWriterSuggestion.draft);
+  };
+
+  const applyEliteStoryPolish = () => {
+    setStoryDraft(eliteStoryPolish.draft);
   };
 
   const clearStoryWriter = () => {
@@ -2597,6 +2606,171 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Elite polish
+                  </p>
+                  <h3 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Tighten the story after the pressure test.
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+                    This version keeps your facts, trims weak phrasing, sharpens
+                    ownership, and makes the story sound more senior without
+                    inventing proof you did not give.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                    Current {liveStoryReview.score}%
+                  </span>
+                  <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                    Polished {eliteStoryPolish.polishedReview.score}%
+                  </span>
+                  <span
+                    className={classNames(
+                      "rounded-full px-3 py-1 text-xs font-semibold",
+                      eliteStoryPolish.scoreDelta > 0
+                        ? "bg-emerald-100 text-emerald-900"
+                        : eliteStoryPolish.scoreDelta < 0
+                          ? "bg-rose-100 text-rose-900"
+                          : "bg-slate-100 text-slate-700",
+                    )}
+                  >
+                    {eliteStoryPolish.scoreDelta > 0 ? "+" : ""}
+                    {eliteStoryPolish.scoreDelta} pts
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="space-y-4">
+                  <div className="rounded-[22px] border border-cyan-200 bg-cyan-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
+                      What changed
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-cyan-950">
+                      {eliteStoryPolish.headline}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Adjustments made
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                      {eliteStoryPolish.adjustments.map((item) => (
+                        <div key={item} className="rounded-2xl bg-white p-3">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Still blocking elite
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                      {eliteStoryPolish.remainingGaps.length ? (
+                        eliteStoryPolish.remainingGaps.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl bg-rose-50 p-3 text-rose-950"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-950">
+                          No obvious remaining gaps. The next lift is delivery:
+                          repeat it aloud until it sounds calm and earned.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Polished story draft
+                    </p>
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Title
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">
+                          {eliteStoryPolish.draft.title || "Title still needed"}
+                        </p>
+                      </div>
+                      {(
+                        [
+                          ["Situation", eliteStoryPolish.draft.situation],
+                          ["Task", eliteStoryPolish.draft.task],
+                          ["Action", eliteStoryPolish.draft.action],
+                          ["Result", eliteStoryPolish.draft.result],
+                          ["Reflection", eliteStoryPolish.draft.reflection],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <div key={label} className="rounded-2xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            {label}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-slate-700">
+                            {value || `${label} still needs real facts.`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-950 p-4 text-white">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Polished verdict
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                        {eliteStoryPolish.polishedReview.verdictLabel}
+                      </span>
+                      <span className="rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-semibold text-cyan-100">
+                        {eliteStoryPolish.polishedReview.score}% score
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-white/88">
+                      {eliteStoryPolish.polishedReview.debriefReadout}
+                    </p>
+                    <div className="mt-4 space-y-3 text-sm leading-6 text-white/82">
+                      {eliteStoryPolish.polishedReview.repairPlan.map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-3"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={applyEliteStoryPolish}
+                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)]"
+                >
+                  Apply elite polish
+                </button>
+                <p className="self-center text-sm text-slate-600">
+                  Apply the tightened version, then rehearse it in the story
+                  recorder until the delivery sounds natural.
+                </p>
               </div>
             </div>
 

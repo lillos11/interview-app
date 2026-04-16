@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEliteStoryDraft,
+  buildEliteStoryPolish,
   buildCurveballPack,
   buildStoryPressureTest,
   coerceInterviewProgress,
@@ -417,6 +418,35 @@ describe("interview prep helpers", () => {
     expect(suggestion.draft.task).toContain("I needed to recover");
     expect(suggestion.draft.result).toContain("[insert metric or delta]");
     expect(suggestion.missingPieces.length).toBeGreaterThan(0);
+  });
+
+  it("builds an elite polish pass that tightens an existing story", () => {
+    const original = {
+      competency: "leadership" as const,
+      categoryTags: ["deliver-results", "ownership"],
+      title: "Peak recovery",
+      situation:
+        "Peak volume hit all at once and the department risked missing customer promise across the shift. The setup had gotten noisy and people were reacting to symptoms instead of the actual bottleneck.",
+      task:
+        "Reset the flow and keep output moving without creating a safety issue or starving the rest of the building.",
+      action:
+        "I checked the real bottleneck, moved labor, escalated the equipment issue, reset the cadence with the leads, and stayed close to the floor until the watch points stabilized.",
+      result:
+        "We recovered 3,000 units and kept the backlog under the shutdown point.",
+      reflection:
+        "Since then I act earlier on watch points and build the escalation path into shift handoff.",
+    };
+
+    const originalReview = reviewStarStory(original);
+    const polished = buildEliteStoryPolish(original);
+
+    expect(polished.draft.title).toBe(original.title);
+    expect(polished.draft.result).toContain("3,000 units");
+    expect(polished.headline.length).toBeGreaterThan(20);
+    expect(polished.adjustments.length).toBeGreaterThan(0);
+    expect(polished.polishedReview.score).toBeGreaterThanOrEqual(
+      originalReview.score,
+    );
   });
 
   it("grades a strong answer with a hire-level signal", () => {
