@@ -7,7 +7,6 @@ import {
   downloadCsv,
   formatDate,
   formatDateTime,
-  getEntriesForWeek,
   getRemainingWindows,
   getTimerSnapshot,
   getWeekStart,
@@ -54,10 +53,6 @@ function text(value, max = 180) {
 function signedMoney(value) {
   const amount = Number(value) || 0;
   return `${amount >= 0 ? "+" : "-"}${usd.format(Math.abs(amount))}`;
-}
-
-function formatHours(minutes) {
-  return `${(minutes / 60).toFixed(1)}h`;
 }
 
 function getTodayIso() {

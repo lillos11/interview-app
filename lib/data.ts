@@ -8,7 +8,7 @@ import {
 } from '@prisma/client';
 
 import { endOfWeek, startOfWeek } from '@/lib/date';
-import { BucketName, TaskStatus, TimeCategory, type BucketName as BucketNameType } from '@/lib/domain';
+import { TaskStatus, TimeCategory, type BucketName as BucketNameType } from '@/lib/domain';
 import {
   DEFAULT_BUCKETS,
   DEFAULT_DEBT_PLAN,

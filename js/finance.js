@@ -64,7 +64,6 @@ export function allocateWeek(settings, scenario = {}) {
   mark("Uber Buffer deposit", uberNeed, uberGot);
 
   // Step C: Emergency deposit (max(25, 3% of net)) until $1000
-  const emergencyTarget = 1000;
   const emergencyNeed = Math.max(25, 0.03 * net);
   const emergencyGot = Math.max(0, Math.min(remaining, emergencyNeed));
   remaining -= emergencyGot;

@@ -69,7 +69,8 @@ export async function createTaskAction(formData: FormData) {
   }
 
   const course = stringFromForm(formData, 'course', 'MBA').trim() || 'MBA';
-  const module = stringFromForm(formData, 'module', 'Current Module').trim() || 'Current Module';
+  const moduleName =
+    stringFromForm(formData, 'module', 'Current Module').trim() || 'Current Module';
   const rubricChecklist =
     stringFromForm(formData, 'rubricChecklist', 'Review assignment rubric').trim() ||
     'Review assignment rubric';
@@ -80,7 +81,7 @@ export async function createTaskAction(formData: FormData) {
     data: {
       title,
       course,
-      module,
+      module: moduleName,
       rubricChecklist,
       estimatedMinutes,
       dueDate,
