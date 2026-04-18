@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AMAZON_PREP_DECK_INTERVIEW_DAY_REMINDERS,
@@ -482,9 +482,12 @@ export default function HomePage() {
   const [expandedPrepDeckStoryId, setExpandedPrepDeckStoryId] = useState<
     string | null
   >(null);
+  const [storyLoadNotice, setStoryLoadNotice] = useState<string | null>(null);
+  const [storyBuilderRevealTick, setStoryBuilderRevealTick] = useState(0);
   const [barRaiserQuestionId, setBarRaiserQuestionId] = useState<string | null>(
     null,
   );
+  const starLabBuilderRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -523,6 +526,33 @@ export default function HomePage() {
       JSON.stringify(progress),
     );
   }, [hydrated, progress]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !storyLoadNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setStoryLoadNotice(null);
+    }, 2600);
+
+    return () => window.clearTimeout(timeout);
+  }, [storyLoadNotice]);
+
+  useEffect(() => {
+    if (activeTab !== "star_lab" || storyBuilderRevealTick === 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      starLabBuilderRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, storyBuilderRevealTick]);
 
   const resetPracticeState = () => {
     setQuestionBankIndex(0);
@@ -1012,10 +1042,19 @@ export default function HomePage() {
   const loadStoryWriterDraft = () => {
     setEditingStoryId(null);
     setStoryDraft(storyWriterSuggestion.draft);
+    setStoryLoadNotice(
+      `Loaded writer draft into STAR Lab: ${storyWriterSuggestion.draft.title || "Untitled story"}.`,
+    );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
   const applyEliteStoryPolish = () => {
     setStoryDraft(eliteStoryPolish.draft);
+    setStoryLoadNotice(
+      `Applied elite polish to ${eliteStoryPolish.draft.title || "your story"}.`,
+    );
+    setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
   const clearStoryWriter = () => {
@@ -1080,7 +1119,9 @@ export default function HomePage() {
       reflection: story.reflection,
     });
     setEditingStoryId(story.id);
+    setStoryLoadNotice(`Loaded saved story: ${story.title || "Untitled story"}.`);
     setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
   const removeStory = (storyId: string) => {
@@ -1117,12 +1158,17 @@ export default function HomePage() {
     }
 
     setEditingStoryId(null);
+    setExpandedPrepDeckStoryId(storyId);
     setStoryDraft(
       mode === "elite"
         ? buildPrepDeckEliteStoryDraft(story)
         : buildPrepDeckStoryDraft(story),
     );
+    setStoryLoadNotice(
+      `${mode === "elite" ? "Loaded elite start" : "Loaded source version"}: ${story.title}.`,
+    );
     setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
   const togglePrepDeckStoryDetails = (storyId: string) => {
@@ -2309,7 +2355,10 @@ export default function HomePage() {
             </article>
           </div>
 
-          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+          <article
+            ref={starLabBuilderRef}
+            className="glass-panel rounded-[28px] border border-slate-200/70 p-5"
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -2328,6 +2377,12 @@ export default function HomePage() {
                 </span>
               </div>
             </div>
+
+            {storyLoadNotice ? (
+              <div className="mt-4 rounded-[22px] border border-emerald-200 bg-emerald-50/80 p-4 text-sm font-semibold text-emerald-950">
+                {storyLoadNotice}
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-4">
               <label className="grid gap-2">
