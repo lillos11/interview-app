@@ -346,7 +346,7 @@ function PrepDeckStoryCard({
   emphasisLabel?: string;
 }) {
   return (
-    <article className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+    <article className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -651,6 +651,8 @@ export default function HomePage() {
   const [drillRevealed, setDrillRevealed] = useState(false);
   const [drillRating, setDrillRating] = useState<DrillRating | null>(null);
   const [drillFinished, setDrillFinished] = useState(false);
+  const [drillStartNotice, setDrillStartNotice] = useState<string | null>(null);
+  const [drillRevealTick, setDrillRevealTick] = useState(0);
 
   const [storyDraft, setStoryDraft] = useState<StoryDraft>(() =>
     createEmptyStoryDraft(),
@@ -679,6 +681,7 @@ export default function HomePage() {
   const [enduranceSession, setEnduranceSession] =
     useState<EnduranceSessionState | null>(null);
   const starLabBuilderRef = useRef<HTMLElement | null>(null);
+  const drillSessionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -745,6 +748,33 @@ export default function HomePage() {
     return () => window.cancelAnimationFrame(frame);
   }, [activeTab, storyBuilderRevealTick]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !drillStartNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDrillStartNotice(null);
+    }, 3600);
+
+    return () => window.clearTimeout(timeout);
+  }, [drillStartNotice]);
+
+  useEffect(() => {
+    if (activeTab !== "drills" || drillRevealTick === 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      drillSessionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, drillRevealTick]);
+
   const resetPracticeState = () => {
     setQuestionBankIndex(0);
     setDrillQuestions([]);
@@ -753,6 +783,7 @@ export default function HomePage() {
     setDrillRevealed(false);
     setDrillRating(null);
     setDrillFinished(false);
+    setDrillStartNotice(null);
     setEnduranceSession(null);
   };
 
@@ -825,6 +856,12 @@ export default function HomePage() {
           filteredQuestions.length
       ]
     : null;
+  const drillSourceQuestions = filteredQuestions.length
+    ? filteredQuestions
+    : amazonFilteredQuestions.length
+      ? amazonFilteredQuestions
+      : familyQuestions;
+  const canStartDrillSession = drillSourceQuestions.length > 0;
 
   const totalDrillReps = progress.drillHistory.length;
   const totalPitchFields = Object.values(progress.pitch).filter(
@@ -1150,12 +1187,38 @@ export default function HomePage() {
   };
 
   const startDrillSession = () => {
-    const count = Math.min(drillLength, Math.max(1, filteredQuestions.length));
-    const questions = pickDrillQuestions(
-      filteredQuestions,
+    const count = Math.min(drillLength, drillSourceQuestions.length);
+
+    if (count <= 0) {
+      setDrillStartNotice(
+        "No prompts are available for this filter yet. Switch family or category, then start again.",
+      );
+      setActiveTab("drills");
+      return;
+    }
+
+    const preferredQuestions = pickDrillQuestions(
+      drillSourceQuestions,
       count,
-      filteredCompetencies,
+      filteredQuestions.length
+        ? filteredCompetencies
+        : INTERVIEW_COMPETENCIES.map((competency) => competency.id),
     );
+    const questions = preferredQuestions.length
+      ? preferredQuestions
+      : pickDrillQuestions(
+          drillSourceQuestions,
+          count,
+          INTERVIEW_COMPETENCIES.map((competency) => competency.id),
+        );
+
+    if (!questions.length) {
+      setDrillStartNotice(
+        "The session could not find a usable question from this filter. Clear the coaching lane and try again.",
+      );
+      setActiveTab("drills");
+      return;
+    }
 
     setDrillQuestions(questions);
     setDrillRatings(new Array(questions.length).fill(null));
@@ -1163,6 +1226,10 @@ export default function HomePage() {
     setDrillRevealed(false);
     setDrillRating(null);
     setDrillFinished(false);
+    setDrillStartNotice(
+      `Started a ${questions.length}-question session. Your first prompt is ready below.`,
+    );
+    setDrillRevealTick((previous) => previous + 1);
     setEnduranceSession(null);
     setActiveTab("drills");
   };
@@ -1647,7 +1714,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
-              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <article className="rounded-[26px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Readiness
                 </p>
@@ -1660,7 +1727,7 @@ export default function HomePage() {
                   </span>
                 </div>
               </article>
-              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <article className="rounded-[26px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   STAR Stories
                 </p>
@@ -1671,7 +1738,7 @@ export default function HomePage() {
                   Saved and reusable for future loops
                 </p>
               </article>
-              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <article className="rounded-[26px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Drill Reps
                 </p>
@@ -1682,7 +1749,7 @@ export default function HomePage() {
                   Logged mock answers and hard-scored reps
                 </p>
               </article>
-              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <article className="rounded-[26px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Prep Streak
                 </p>
@@ -1755,7 +1822,7 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     selectedFamily === family
                       ? "bg-slate-950 text-white shadow-md"
-                      : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
+                      : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
                   )}
                 >
                   {INTERVIEW_SOURCE_FAMILY_LABELS[family]}
@@ -1766,7 +1833,7 @@ export default function HomePage() {
               {categoryGroups.map((group) => (
                 <div
                   key={group.family}
-                  className="rounded-[26px] border border-slate-200 bg-white/[0.08]2 p-5"
+                  className="rounded-[26px] border border-slate-200 bg-white/82 p-5"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     {group.label}
@@ -1807,7 +1874,7 @@ export default function HomePage() {
                   "rounded-full px-4 py-2 text-sm font-semibold transition",
                   effectiveSelectedCategoryId === "all"
                     ? "bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]"
-                    : "border border-cyan-200/80 bg-white/[0.08]0 text-cyan-900 hover:bg-cyan-50",
+                    : "border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50",
                 )}
               >
                 All {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
@@ -1821,7 +1888,7 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     effectiveSelectedCategoryId === category.id
                       ? "bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]"
-                      : "border border-cyan-200/80 bg-white/[0.08]0 text-cyan-900 hover:bg-cyan-50",
+                      : "border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50",
                   )}
                 >
                   {category.label}
@@ -1841,7 +1908,7 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     selectedCompetency === "all"
                       ? "bg-slate-950 text-white shadow-md"
-                      : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
+                      : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
                   )}
                 >
                   All lanes
@@ -1855,7 +1922,7 @@ export default function HomePage() {
                       "rounded-full px-4 py-2 text-sm font-semibold transition",
                       selectedCompetency === competency.id
                         ? "bg-slate-950 text-white shadow-md"
-                        : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
+                        : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
                     )}
                   >
                     {competency.title}
@@ -1971,7 +2038,7 @@ export default function HomePage() {
                 Track breadth across LPs, functional areas, and manager prompts.
               </h2>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     LP coverage
                   </p>
@@ -1983,7 +2050,7 @@ export default function HomePage() {
                     Leadership Principles touched by stories or reps
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Functional coverage
                   </p>
@@ -1995,7 +2062,7 @@ export default function HomePage() {
                     Functional categories touched by stories or reps
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Manager question coverage
                   </p>
@@ -2007,7 +2074,7 @@ export default function HomePage() {
                     Manager-only prompts you have practiced so far
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Current category pool
                   </p>
@@ -2168,7 +2235,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Package path
                   </p>
@@ -2176,7 +2243,7 @@ export default function HomePage() {
                     {prepMomentumDashboard.compSummary}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Total upside
                   </p>
@@ -2184,7 +2251,7 @@ export default function HomePage() {
                     {formatCurrency(prepMomentumDashboard.compDelta)}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Weekly upside at risk
                   </p>
@@ -2236,7 +2303,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-4 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+                <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2386,7 +2453,7 @@ export default function HomePage() {
                 {passBlockers.map((blocker) => (
                   <div
                     key={blocker.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -2433,7 +2500,7 @@ export default function HomePage() {
                 {nextMoves.map((move) => (
                   <div
                     key={move}
-                    className="rounded-2xl border border-slate-200 bg-white/[0.08]0 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-sm leading-6 text-slate-700"
                   >
                     {move}
                   </div>
@@ -2516,7 +2583,7 @@ export default function HomePage() {
                 </label>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2571,7 +2638,7 @@ export default function HomePage() {
                   recentBarRaiserReviews.map((entry) => (
                     <div
                       key={`${entry.questionId}-${entry.date}`}
-                      className="rounded-2xl border border-slate-200 bg-white/[0.08]0 p-4"
+                      className="rounded-2xl border border-slate-200 bg-white/80 p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2646,7 +2713,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     LP story coverage
                   </p>
@@ -2662,7 +2729,7 @@ export default function HomePage() {
                     Leadership Principles tagged by saved stories
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Functional story coverage
                   </p>
@@ -2678,7 +2745,7 @@ export default function HomePage() {
                     Functional areas tagged by saved stories
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Active category matches
                   </p>
@@ -2695,7 +2762,7 @@ export default function HomePage() {
                       : "Total saved stories"}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Current family question bank
                   </p>
@@ -2713,7 +2780,7 @@ export default function HomePage() {
                   recentStories.map((story) => (
                     <article
                       key={story.id}
-                      className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
+                      className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
@@ -2800,7 +2867,7 @@ export default function HomePage() {
                         toggleStoryCategoryTag(prompt.sourceCategoryId);
                       }
                     }}
-                    className="w-full rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-left text-sm leading-6 text-slate-700 transition hover:border-cyan-400"
+                    className="w-full rounded-[22px] border border-slate-200 bg-white/82 p-4 text-left text-sm leading-6 text-slate-700 transition hover:border-cyan-400"
                   >
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-900">
@@ -2879,7 +2946,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4">
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -3174,7 +3241,7 @@ export default function HomePage() {
                   {categoryGroups.map((group) => (
                     <div
                       key={group.family}
-                      className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                     >
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         {group.label}
@@ -3278,7 +3345,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 grid gap-6 2xl:grid-cols-[1fr_0.9fr]">
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5 lg:col-span-2">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3413,7 +3480,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5 lg:col-span-2">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3709,7 +3776,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Debrief readout
                 </p>
@@ -3741,7 +3808,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Repair plan
                 </p>
@@ -3754,7 +3821,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]0 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   STAR reminder
                 </p>
@@ -3783,7 +3850,7 @@ export default function HomePage() {
               <StoryRehearsalStudio story={storyDraft} />
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+            <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/82 p-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3853,7 +3920,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
-              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -4265,7 +4332,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/[0.08]2 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+            <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -4494,7 +4561,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={startDrillSession}
-                  disabled={!filteredQuestions.length}
+                  disabled={!canStartDrillSession}
                   className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Start session
@@ -4511,8 +4578,18 @@ export default function HomePage() {
               </div>
             </div>
 
+            {drillStartNotice ? (
+              <div
+                className="mt-5 rounded-[22px] border border-emerald-200 bg-emerald-50/90 p-4 text-sm font-semibold leading-6 text-emerald-950"
+                role="status"
+                aria-live="polite"
+              >
+                {drillStartNotice}
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-4 md:grid-cols-3">
-              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Available prompts
                 </p>
@@ -4520,7 +4597,7 @@ export default function HomePage() {
                   {filteredQuestions.length}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Strong ratings
                 </p>
@@ -4532,7 +4609,7 @@ export default function HomePage() {
                   }
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Current focus
                 </p>
@@ -4563,7 +4640,7 @@ export default function HomePage() {
                   {enduranceLoopPlan.summary}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 px-4 py-3 text-sm text-slate-700">
+              <div className="rounded-[22px] border border-slate-200 bg-white/82 px-4 py-3 text-sm text-slate-700">
                 <div>{enduranceLoopPlan.totalRounds} rounds</div>
                 <div className="mt-1">{enduranceLoopPlan.totalQuestions} prompts</div>
                 <div className="mt-1">{enduranceLoopPlan.totalMinutes} minutes</div>
@@ -4574,7 +4651,7 @@ export default function HomePage() {
               {enduranceLoopPlan.rounds.map((round) => (
                 <div
                   key={round.id}
-                  className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
+                  className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
@@ -4805,7 +4882,10 @@ export default function HomePage() {
           </article>
 
           {drillHasStarted && currentDrillQuestion ? (
-            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <article
+              ref={drillSessionRef}
+              className="glass-panel scroll-mt-28 rounded-[28px] border border-slate-200/70 p-5"
+            >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -4852,7 +4932,7 @@ export default function HomePage() {
               ) : (
                 <>
                   <div className="mt-5 grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
-                    <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         A strong answer includes
                       </p>
@@ -4899,7 +4979,7 @@ export default function HomePage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
+                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Self score
                       </p>
@@ -4975,7 +5055,7 @@ export default function HomePage() {
                 {(Object.keys(ratingMeta) as DrillRating[]).map((rating) => (
                   <div
                     key={rating}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/80 p-4"
                   >
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       {ratingMeta[rating].label}
@@ -5043,7 +5123,7 @@ export default function HomePage() {
 
             {currentQuestionBankEntry ? (
               <>
-                <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/[0.08]2 p-6">
+                <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
                       {currentQuestionBankEntry.sourceCategoryLabel}
@@ -5137,7 +5217,7 @@ export default function HomePage() {
                 {selectedFamilyCategories.map((category) => (
                   <div
                     key={category.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/80 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -5166,7 +5246,7 @@ export default function HomePage() {
               </h2>
               {currentQuestionBankEntry && currentQuestionReadiness ? (
                 <>
-                  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/82 p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={classNames(
@@ -5194,7 +5274,7 @@ export default function HomePage() {
                       currentQuestionMatchedStories.map((story) => (
                         <div
                           key={story.id}
-                          className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
@@ -5224,7 +5304,7 @@ export default function HomePage() {
                       currentQuestionPrepDeckStories.map((story) => (
                         <div
                           key={story.id}
-                          className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
@@ -5282,13 +5362,13 @@ export default function HomePage() {
                 Current filter summary
               </p>
               <div className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   Active family:{" "}
                   <span className="font-semibold text-slate-950">
                     {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   Active category:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCategory
@@ -5296,7 +5376,7 @@ export default function HomePage() {
                       : "All categories"}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
                   Active coaching lane:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCompetency === "all"
@@ -5385,7 +5465,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-4">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Baseline
                   </p>
@@ -5393,7 +5473,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.baselineScore}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Candidate
                   </p>
@@ -5401,7 +5481,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.candidateScore}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Delta
                   </p>
@@ -5417,7 +5497,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.delta}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Gate
                   </p>
@@ -5437,7 +5517,7 @@ export default function HomePage() {
                 {promptAdherenceMatrix.results.map((result) => (
                   <div
                     key={result.probeId}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -5562,7 +5642,7 @@ export default function HomePage() {
                   />
                 </label>
 
-                <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4">
+                <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     X-ray canvas
                   </p>
@@ -5576,7 +5656,7 @@ export default function HomePage() {
                     opsXRayReport.windows.map((window) => (
                       <div
                         key={window.id}
-                        className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                        className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -5686,7 +5766,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Latest score
                     </p>
@@ -5697,7 +5777,7 @@ export default function HomePage() {
                         .find((point) => point.score !== null)?.score ?? "--"}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Latest pack rate
                     </p>
@@ -5708,7 +5788,7 @@ export default function HomePage() {
                         .find((point) => point.packRate !== null)?.packRate ?? "--"}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Memory decay watch
                     </p>
@@ -5772,7 +5852,7 @@ export default function HomePage() {
                 {checklistByPhase.map((group) => (
                   <div
                     key={group.phase}
-                    className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
+                    className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
                   >
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                       {group.label}
@@ -5831,7 +5911,7 @@ export default function HomePage() {
                 {AMAZON_PREP_DECK_INTERVIEW_DAY_REMINDERS.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700"
                   >
                     {item}
                   </div>
@@ -5869,7 +5949,7 @@ export default function HomePage() {
                   return (
                     <div
                       key={`${entry.interviewer}-${entry.categoryId}`}
-                      className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
@@ -5908,7 +5988,7 @@ export default function HomePage() {
                 {INTERVIEW_RESCUE_SCRIPTS.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-slate-950">
@@ -5937,13 +6017,13 @@ export default function HomePage() {
                 Stay inside your real bank on game day.
               </h2>
               <div className="mt-5 space-y-4">
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
                   Active family:{" "}
                   <span className="font-semibold text-slate-950">
                     {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
                   Active category:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCategory
@@ -5951,13 +6031,13 @@ export default function HomePage() {
                       : "All categories"}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
                   Prompt count in current filter:{" "}
                   <span className="font-semibold text-slate-950">
                     {filteredQuestions.length}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
                   Manager-only prompts in current filter:{" "}
                   <span className="font-semibold text-slate-950">
                     {
@@ -5967,7 +6047,7 @@ export default function HomePage() {
                     }
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
                   Keep your final reps anchored to the imported bank so your
                   practice language matches the real loop.
                 </div>
@@ -5982,7 +6062,7 @@ export default function HomePage() {
                 {NEGOTIATION_REMINDERS.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700"
                   >
                     {item}
                   </div>
