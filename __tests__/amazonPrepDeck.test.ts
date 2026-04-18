@@ -31,31 +31,31 @@ describe("amazon prep deck", () => {
     const lpStories = getPrepDeckStoriesForFamily("lp");
     const functionalStories = getPrepDeckStoriesForFamily("functional");
 
-    expect(thinkBigRoute?.primaryStoryIds).toEqual(["story-16", "story-1", "story-19"]);
+    expect(thinkBigRoute?.primaryStoryIds).toEqual(["story-7", "story-15", "story-1"]);
     expect(thinkBigStories.map((story) => story.id)).toEqual(
-      expect.arrayContaining(["story-1", "story-10", "story-16", "story-19"]),
+      expect.arrayContaining(["story-1", "story-7", "story-10", "story-15"]),
     );
     expect(lpStories.length).toBeGreaterThanOrEqual(thinkBigStories.length);
     expect(functionalStories.length).toBeGreaterThan(0);
   });
 
   it("builds a reusable STAR draft from an imported deck story", () => {
-    const story = getPrepDeckStoryById("story-7");
+    const story = getPrepDeckStoryById("story-5");
 
     expect(story).not.toBeNull();
-    expect(story?.keyNumbers).toContain("Scanned bucket 10,000 to under 7,000");
+    expect(story?.keyNumbers).toContain("3,000-unit recovery");
 
     const draft = buildPrepDeckStoryDraft(story!);
 
-    expect(draft.title).toBe("The Floor Rescue");
+    expect(draft.title).toBe("The Floor Rescue (10K to 7K Scanned Bucket Recovery)");
     expect(draft.competency).toBe("ownership");
     expect(draft.categoryTags).toEqual(
       expect.arrayContaining(["ownership", "bias-for-action"]),
     );
     expect(draft.action).toContain("I called RME directly");
     expect(draft.grounding?.kind).toBe("prep_bank");
-    expect(draft.grounding?.sourceId).toBe("story-7");
-    expect(draft.grounding?.snapshot.result).toContain("10,000");
+    expect(draft.grounding?.sourceId).toBe("story-5");
+    expect(draft.grounding?.snapshot.result).toContain("10K");
   });
 
   it("keeps the story-bank follow-up prep available", () => {
@@ -63,7 +63,8 @@ describe("amazon prep deck", () => {
 
     expect(story).not.toBeNull();
     expect(story?.followUpQuestions).toHaveLength(5);
-    expect(story?.whatChanged).toContain("Before this");
+    expect(story?.standardWork).toBeUndefined();
+    expect(story?.verificationNotes?.[0]).toContain("VERIFY tags");
   });
 
   it("gives every imported story an elite-start path without losing score", () => {

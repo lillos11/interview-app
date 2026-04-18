@@ -341,8 +341,13 @@ function PrepDeckStoryCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
-              Story {story.storyNumber}
+              Story {story.storyCode ?? story.storyNumber}
             </span>
+            {story.status ? (
+              <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-900">
+                {story.status}
+              </span>
+            ) : null}
             {emphasisLabel ? (
               <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
                 {emphasisLabel}
@@ -458,6 +463,30 @@ function PrepDeckStoryCard({
                   <p className="mt-2 text-sm leading-6 text-slate-700">
                     {story.whatChanged}
                   </p>
+                </div>
+              ) : null}
+              {story.standardWork ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Standard work created
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {story.standardWork}
+                  </p>
+                </div>
+              ) : null}
+              {story.verificationNotes?.length ? (
+                <div className="rounded-[22px] border border-red-200 bg-red-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-800">
+                    Verify before live interview
+                  </p>
+                  <div className="mt-2 space-y-2 text-sm leading-6 text-red-950">
+                    {story.verificationNotes.map((item) => (
+                      <div key={item} className="rounded-2xl bg-white p-3">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {story.followUpQuestions.length ? (

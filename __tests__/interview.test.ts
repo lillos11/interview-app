@@ -646,25 +646,25 @@ describe("interview prep helpers", () => {
       reflection: "",
       grounding: {
         kind: "prep_bank",
-        sourceId: "story-3",
-        sourceLabel: "Story bank 3: The Prime Day CPT Recovery",
+        sourceId: "story-2",
+        sourceLabel: "Story bank 2: Prime Day SmartPac CPT Recovery",
         snapshot: {
-          title: "The Prime Day CPT Recovery",
+          title: "Prime Day SmartPac CPT Recovery",
           situation:
-            "During Prime Day at MKC6, I had 5,500 CPTs due inside a two-hour window with no extra headcount available to pull.",
+            "During Prime Day at MKC6, the SmartPac line got hit with 5,500 CPTs concentrated in a tight 2-hour window.",
           task:
-            "I had to clear the window on time using the people and stations already on the floor while making staffing calls quickly enough to recover in flight.",
+            "I needed to clear 5,500 SmartPac CPTs within the 2-hour window without letting the tote line back up to the router.",
           action:
-            "I tracked the scanned bucket and actual throughput against the required pace, spotted that we were trending short, moved a packer from a lower-priority path to Singles, and added a dwell lead to remove the handoff delay between packing and dock.",
+            "I read staffing and productivity data in real time, added a packer to the SmartPac line, pulled an extra dwell lead, and monitored the tote line continuously.",
           result:
-            "We cleared 5,478 of 5,500 CPTs, a 99.6% recovery rate. The 22 that missed were late-arriving volume outside our control, so we had zero preventable CPT misses.",
+            "We pushed out 5,478 out of 5,500 SmartPac CPTs — 99.6% recovery.",
           reflection:
-            "In a live operation, waiting for perfect information is usually the same thing as choosing to lose. Speed matters when the data already tells you what lever to pull.",
+            "The difference between 258 misses and 99.6% recovery is catching the problem when you still have time to act.",
         },
       },
     });
 
-    expect(amplified.draft.grounding?.sourceId).toBe("story-3");
+    expect(amplified.draft.grounding?.sourceId).toBe("story-2");
     expect(amplified.draft.result).toContain("5,478");
     expect(amplified.draft.result).toContain("99.6%");
   });
