@@ -19,6 +19,7 @@ import {
   type PrepDeckStoryTemplate,
 } from "@/lib/amazonPrepDeck";
 import {
+  buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildStoryPressureTest,
@@ -57,6 +58,7 @@ import {
   saveStarStory,
   toggleChecklistItem,
   updatePitchPack,
+  type BarRaiserAmplificationField,
   type CompetencyId,
   type DrillRating,
   type InterviewAnswerReview,
@@ -668,6 +670,10 @@ export default function HomePage() {
     () => buildEliteStoryPolish(storyDraft),
     [storyDraft],
   );
+  const barRaiserAmplification = useMemo(
+    () => buildBarRaiserAmplification(storyDraft),
+    [storyDraft],
+  );
   const liveStoryPressureTest = useMemo(
     () => buildStoryPressureTest(storyDraft),
     [storyDraft],
@@ -1054,6 +1060,34 @@ export default function HomePage() {
     setStoryLoadNotice(
       `Applied elite polish to ${eliteStoryPolish.draft.title || "your story"}.`,
     );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyBarRaiserAmplification = () => {
+    setStoryDraft(barRaiserAmplification.draft);
+    setStoryLoadNotice(
+      `Applied Bar Raiser amplify to ${barRaiserAmplification.draft.title || "your story"}.`,
+    );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyBarRaiserAmplifiedField = (
+    field: BarRaiserAmplificationField,
+  ) => {
+    const upgrade = barRaiserAmplification.sectionUpgrades.find(
+      (item) => item.field === field,
+    );
+
+    setStoryDraft((previous) => ({
+      ...previous,
+      [field]: barRaiserAmplification.draft[field],
+    }));
+    setStoryLoadNotice(
+      `Applied Bar Raiser amplify to ${upgrade?.label.toLowerCase() ?? field}.`,
+    );
+    setActiveTab("star_lab");
     setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
@@ -2779,6 +2813,274 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[28px] bg-slate-950 p-5 text-white shadow-[0_18px_48px_rgba(15,23,42,0.22)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Bar Raiser amplify
+                  </p>
+                  <h3 className="mt-1 text-2xl font-semibold text-white">
+                    Let the hardest interviewer rewrite the story with you.
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-white/80">
+                    This pass acts like a skeptical Bar Raiser. It tightens the
+                    story, shows the exact sections that need surgery, and tells
+                    you the proof still missing before the story is truly safe
+                    in a hard loop.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                    Current {liveStoryReview.score}%
+                  </span>
+                  <span className="rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-semibold text-cyan-100">
+                    Amplified {barRaiserAmplification.amplifiedReview.score}%
+                  </span>
+                  <span
+                    className={classNames(
+                      "rounded-full px-3 py-1 text-xs font-semibold",
+                      barRaiserAmplification.scoreDelta > 0
+                        ? "bg-emerald-300/15 text-emerald-100"
+                        : barRaiserAmplification.scoreDelta < 0
+                          ? "bg-rose-300/15 text-rose-100"
+                          : "bg-white/10 text-white/80",
+                    )}
+                  >
+                    {barRaiserAmplification.scoreDelta > 0 ? "+" : ""}
+                    {barRaiserAmplification.scoreDelta} pts
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+                <div className="space-y-4">
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Bar Raiser readout
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-white">
+                      {barRaiserAmplification.headline}
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-white/82">
+                      {barRaiserAmplification.barRaiserReadout}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Proof I still need from you
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                      {barRaiserAmplification.proofDemands.length ? (
+                        barRaiserAmplification.proofDemands.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-emerald-100">
+                          No obvious proof gaps are left. The next lift is live
+                          rehearsal so the evidence lands fast when challenged.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Next amplifier moves
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                      {barRaiserAmplification.amplifierMoves.length ? (
+                        barRaiserAmplification.amplifierMoves.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                          The structure is already in good shape. Stay focused
+                          on delivery and repeat the story until it sounds calm,
+                          specific, and earned.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Source-bank prompts I would use to probe it
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                      {barRaiserAmplification.sourceBankPrompts.length ? (
+                        barRaiserAmplification.sourceBankPrompts.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                          Tag the story to the right Amazon categories and the
+                          matching source-bank prompts will appear here.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Section-by-section surgery
+                    </p>
+                    <div className="mt-3 space-y-4">
+                      {barRaiserAmplification.sectionUpgrades.length ? (
+                        barRaiserAmplification.sectionUpgrades.map((item) => (
+                          <div
+                            key={item.field}
+                            className="rounded-[22px] border border-white/10 bg-black/10 p-4"
+                          >
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-white">
+                                  {item.label}
+                                </p>
+                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/45">
+                                  Why this changed
+                                </p>
+                                <p className="mt-2 text-sm leading-6 text-white/72">
+                                  {item.reason}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  applyBarRaiserAmplifiedField(item.field)
+                                }
+                                className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950"
+                              >
+                                Use this {item.label.toLowerCase()}
+                              </button>
+                            </div>
+
+                            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
+                                  Before
+                                </p>
+                                <p className="mt-2 text-sm leading-6 text-white/72">
+                                  {item.before}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                                  After
+                                </p>
+                                <p className="mt-2 text-sm leading-6 text-white">
+                                  {item.after}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-[22px] border border-white/10 bg-black/10 p-4 text-sm leading-6 text-white/78">
+                          The wording is already tight enough that line edits are
+                          not the blocker. What remains is proof quality,
+                          tradeoff clarity, and live delivery under pressure.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Amplified draft
+                    </p>
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                          Title
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-white">
+                          {barRaiserAmplification.draft.title ||
+                            "Title still needed"}
+                        </p>
+                      </div>
+                      {(
+                        [
+                          ["Situation", barRaiserAmplification.draft.situation],
+                          ["Task", barRaiserAmplification.draft.task],
+                          ["Action", barRaiserAmplification.draft.action],
+                          ["Result", barRaiserAmplification.draft.result],
+                          ["Reflection", barRaiserAmplification.draft.reflection],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                            {label}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-white/82">
+                            {value || `${label} still needs real facts.`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Remaining risks
+                    </p>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-white/82">
+                      {barRaiserAmplification.remainingRisks.length ? (
+                        barRaiserAmplification.remainingRisks.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-rose-100"
+                          >
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-emerald-100">
+                          No obvious risk flags remain. Keep this story sharp by
+                          rehearsing it until the proof and tradeoff land in the
+                          first answer, not only after follow-ups.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={applyBarRaiserAmplification}
+                  className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_30px_rgba(15,23,42,0.18)]"
+                >
+                  Apply Bar Raiser amplify
+                </button>
+                <p className="self-center text-sm text-white/70">
+                  Apply the amplified version, then record it and listen for any
+                  place where the proof still sounds thin or rushed.
+                </p>
               </div>
             </div>
 

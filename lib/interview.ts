@@ -316,6 +316,35 @@ export interface EliteStoryPolish {
   remainingGaps: string[];
 }
 
+export type BarRaiserAmplificationField =
+  | "title"
+  | "situation"
+  | "task"
+  | "action"
+  | "result"
+  | "reflection";
+
+export interface BarRaiserAmplificationSection {
+  field: BarRaiserAmplificationField;
+  label: string;
+  before: string;
+  after: string;
+  reason: string;
+}
+
+export interface BarRaiserAmplification {
+  draft: StoryDraft;
+  amplifiedReview: StoryReview;
+  scoreDelta: number;
+  headline: string;
+  barRaiserReadout: string;
+  amplifierMoves: string[];
+  proofDemands: string[];
+  sourceBankPrompts: string[];
+  sectionUpgrades: BarRaiserAmplificationSection[];
+  remainingRisks: string[];
+}
+
 export interface InterviewPrepProgress {
   version: 1;
   createdAt: string;
@@ -2423,6 +2452,255 @@ export function buildEliteStoryPolish(
             "The story already had a solid structure, so the main lift now is better proof and more deliberate rehearsal.",
           ],
     remainingGaps: [...new Set(remainingGaps)].slice(0, 5),
+  };
+}
+
+function ensureFirstPersonSegment(segment: string): string {
+  const trimmed = normalizeStoryField(segment).replace(/[.!?]+$/, "");
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/\b(i|me|my|mine)\b/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^[a-z]/i.test(trimmed)) {
+    return `I ${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`;
+  }
+
+  return `I ${trimmed}`;
+}
+
+function amplifyStoryAction(text: string): string {
+  const segments = extractSentenceLikeSegments(text);
+
+  if (!segments.length) {
+    return "";
+  }
+
+  const cues = ["First", "Then", "Next", "Finally"];
+
+  if (segments.length === 1) {
+    return ensureSentence(ensureFirstPersonSegment(segments[0]));
+  }
+
+  return segments
+    .slice(0, 4)
+    .map((segment, index) => {
+      const firstPerson = ensureFirstPersonSegment(segment);
+
+      if (!firstPerson) {
+        return "";
+      }
+
+      if (/^(first|then|next|finally|after that|from there)[,:]?\s+/i.test(firstPerson)) {
+        return ensureSentence(firstPerson);
+      }
+
+      return ensureSentence(
+        `${cues[Math.min(index, cues.length - 1)]}, ${firstPerson}`,
+      );
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function buildBarRaiserAmplification(
+  story: Partial<StoryDraft>,
+): BarRaiserAmplification {
+  const safe = sanitizeStoryDraft(story);
+  const originalReview = reviewStarStory(safe);
+  const draftSuggestion = buildEliteStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    titleHint: safe.title,
+    context: safe.situation,
+    stakes: safe.task,
+    actions: safe.action,
+    result: safe.result,
+    lesson: safe.reflection,
+  });
+
+  const amplifiedDraft = sanitizeStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    title:
+      safe.title.trim() ||
+      (!hasPlaceholder(draftSuggestion.draft.title)
+        ? draftSuggestion.draft.title
+        : ""),
+    situation: safe.situation.trim()
+      ? tightenStorySituation(safe.situation)
+      : !hasPlaceholder(draftSuggestion.draft.situation)
+        ? tightenStorySituation(draftSuggestion.draft.situation)
+        : "",
+    task: safe.task.trim()
+      ? tightenStoryTask(safe.task)
+      : !hasPlaceholder(draftSuggestion.draft.task)
+        ? tightenStoryTask(draftSuggestion.draft.task)
+        : "",
+    action: safe.action.trim()
+      ? amplifyStoryAction(safe.action)
+      : !hasPlaceholder(draftSuggestion.draft.action)
+        ? amplifyStoryAction(draftSuggestion.draft.action)
+        : "",
+    result: safe.result.trim()
+      ? tightenStoryResult(safe.result)
+      : !hasPlaceholder(draftSuggestion.draft.result)
+        ? tightenStoryResult(draftSuggestion.draft.result)
+        : "",
+    reflection: safe.reflection.trim()
+      ? tightenStoryReflection(safe.reflection)
+      : !hasPlaceholder(draftSuggestion.draft.reflection)
+        ? tightenStoryReflection(draftSuggestion.draft.reflection)
+        : "",
+  });
+
+  const amplifiedReviewCandidate = reviewStarStory(amplifiedDraft);
+  const keepOriginal = amplifiedReviewCandidate.score < originalReview.score;
+  const bestDraft = keepOriginal ? safe : amplifiedDraft;
+  const bestReview = keepOriginal ? originalReview : amplifiedReviewCandidate;
+  const scoreDelta = bestReview.score - originalReview.score;
+  const bestPressureTest = buildStoryPressureTest(bestDraft);
+
+  const sectionMetadata: Array<{
+    field: BarRaiserAmplificationField;
+    label: string;
+    reason: string;
+  }> = [
+    {
+      field: "title",
+      label: "Title",
+      reason:
+        "Made the title easier to recall under pressure so you can pull the story faster in a live loop.",
+    },
+    {
+      field: "situation",
+      label: "Situation",
+      reason:
+        "Cut extra setup so the stakes land faster and the interviewer gets to the real signal sooner.",
+    },
+    {
+      field: "task",
+      label: "Task",
+      reason:
+        "Made your ownership explicit so a skeptical interviewer hears what you personally had to drive.",
+    },
+    {
+      field: "action",
+      label: "Action",
+      reason:
+        "Resequenced the action so judgment, leverage, and pacing are easier to follow under scrutiny.",
+    },
+    {
+      field: "result",
+      label: "Result",
+      reason:
+        "Tightened the ending so the proof lands quickly before the interviewer interrupts or redirects.",
+    },
+    {
+      field: "reflection",
+      label: "Reflection",
+      reason:
+        "Closed with the operating change so the story sounds learned from, not merely finished.",
+    },
+  ];
+
+  const sectionUpgrades = sectionMetadata.flatMap(
+    ({ field, label, reason }): BarRaiserAmplificationSection[] => {
+      const before = safe[field];
+      const after = bestDraft[field];
+
+      if (!after.trim() || before === after) {
+        return [];
+      }
+
+      return [
+        {
+          field,
+          label,
+          before: before || `${label} was blank.`,
+          after,
+          reason,
+        },
+      ];
+    },
+  );
+
+  const proofDemands: string[] = [];
+
+  if (!hasMetric(bestDraft.result)) {
+    proofDemands.push(
+      "State the exact metric, percentage, time delta, or scope marker that proves the result mattered.",
+    );
+  }
+  if (!countMatches(bestDraft.action, TRADEOFF_PATTERN)) {
+    proofDemands.push(
+      "Name the hard tradeoff or decision rule so the story sounds like leadership instead of motion.",
+    );
+  }
+  if (!countMatches(`${bestDraft.result} ${bestDraft.reflection}`, STANDARD_WORK_PATTERN)) {
+    proofDemands.push(
+      "Explain what remained after you: the mechanism, standard work, cadence, or operating habit that stuck.",
+    );
+  }
+  if (!/\b(i|me|my|mine)\b/i.test(`${bestDraft.task} ${bestDraft.action}`)) {
+    proofDemands.push(
+      "Strip out team blur and state exactly what you personally drove, decided, escalated, or inspected.",
+    );
+  }
+  if (countWords(bestDraft.reflection) < 6) {
+    proofDemands.push(
+      "Add the lesson that changed how you now lead so the story ends with growth, not just completion.",
+    );
+  }
+  if (hasPlaceholder(`${bestDraft.task} ${bestDraft.action} ${bestDraft.result} ${bestDraft.reflection}`)) {
+    proofDemands.push(
+      "Replace every scaffolded line with your exact facts before you trust this story in an interview.",
+    );
+  }
+
+  const weakestDimension = [...bestReview.dimensions].sort(
+    (left, right) => left.score - right.score,
+  )[0];
+
+  const headline =
+    keepOriginal
+      ? "Bar Raiser amplify kept the strongest source wording. The next lift is harder proof, clearer tradeoffs, and calmer delivery, not more cosmetic rewriting."
+      : scoreDelta > 0
+        ? `Bar Raiser amplify lifts the story by ${scoreDelta} point${scoreDelta === 1 ? "" : "s"} and makes the signal easier to hear in a hard loop.`
+        : bestReview.score >= 85
+          ? "The story was already strong. Bar Raiser amplify mostly tightens the pacing so the strongest proof lands earlier."
+          : "The wording is tighter, but the limiting factor is still the quality of the facts, not the phrasing.";
+
+  const barRaiserReadout =
+    bestReview.score >= 85
+      ? `If I were the Bar Raiser, I would let this story stay in the loop, but I would still probe ${weakestDimension.label.toLowerCase()} because that is the part that separates polished from truly senior.`
+      : bestReview.score >= 70
+        ? `If I were the Bar Raiser, I would keep pressing on ${weakestDimension.label.toLowerCase()}. This is moving toward a hire signal, but it still needs harder proof before I fully trust it.`
+        : `If I were the Bar Raiser, this still would not carry the loop. The weakest signal is ${weakestDimension.label.toLowerCase()}, and until that gets sharper, the story is still exposed.`;
+
+  return {
+    draft: bestDraft,
+    amplifiedReview: bestReview,
+    scoreDelta,
+    headline,
+    barRaiserReadout,
+    amplifierMoves: [
+      ...new Set([
+        ...bestReview.upgradeMoves,
+        ...bestPressureTest.upgradeMoves,
+        ...draftSuggestion.polishNotes,
+      ]),
+    ].slice(0, 5),
+    proofDemands: [...new Set(proofDemands)].slice(0, 5),
+    sourceBankPrompts: bestPressureTest.pressureQuestions,
+    sectionUpgrades,
+    remainingRisks: [
+      ...new Set([...bestReview.misses, ...bestPressureTest.vulnerabilities]),
+    ].slice(0, 6),
   };
 }
 

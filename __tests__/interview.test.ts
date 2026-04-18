@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildCurveballPack,
@@ -447,6 +448,42 @@ describe("interview prep helpers", () => {
     expect(polished.polishedReview.score).toBeGreaterThanOrEqual(
       originalReview.score,
     );
+  });
+
+  it("amplifies stories like a bar raiser without leaving the source bank", () => {
+    const original = {
+      competency: "leadership" as const,
+      categoryTags: ["deliver-results"],
+      title: "Shift save with live labor rebalance",
+      situation:
+        "Mid-shift, outbound volume spiked and one critical conveyor started failing, which put the customer promise for the night at risk.",
+      task:
+        "I had to recover the flow fast without creating a safety issue or starving the rest of the building.",
+      action:
+        "Checked the real bottleneck, moved labor, escalated the equipment issue, reset the cadence with the leads, and stayed close to the floor until the watch points stabilized.",
+      result:
+        "We recovered 3,000 units and kept the backlog under the shutdown point.",
+      reflection:
+        "Since then I act earlier on watch points and build the escalation path into shift handoff.",
+    };
+
+    const originalReview = reviewStarStory(original);
+    const amplified = buildBarRaiserAmplification(original);
+
+    expect(amplified.draft.result).toContain("3,000 units");
+    expect(amplified.headline.length).toBeGreaterThan(20);
+    expect(amplified.barRaiserReadout.toLowerCase()).toContain("bar raiser");
+    expect(amplified.amplifiedReview.score).toBeGreaterThanOrEqual(
+      originalReview.score,
+    );
+    expect(amplified.proofDemands.length).toBeGreaterThan(0);
+    expect(amplified.sectionUpgrades.length).toBeGreaterThan(0);
+    expect(amplified.sourceBankPrompts.length).toBeGreaterThan(0);
+    expect(
+      amplified.sourceBankPrompts.every((prompt) =>
+        INTERVIEW_QUESTIONS.some((question) => question.prompt === prompt),
+      ),
+    ).toBe(true);
   });
 
   it("grades a strong answer with a hire-level signal", () => {
