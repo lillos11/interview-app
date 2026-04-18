@@ -387,6 +387,90 @@ export interface BarRaiserAmplification {
   remainingRisks: string[];
 }
 
+export interface InterviewCareerProfile {
+  currentRole: string;
+  currentLevel: string;
+  targetRole: string;
+  targetLevel: string;
+  currentTotalComp: number | null;
+  targetTotalComp: number | null;
+}
+
+export interface StoryBoundingBox {
+  field: BarRaiserAmplificationField;
+  label: string;
+  text: string;
+  classification: "ownership" | "team" | "context" | "evidence" | "fluff";
+  reason: string;
+}
+
+export interface StoryGhostMetric {
+  field: "action" | "result" | "reflection";
+  label: string;
+  placeholder: string;
+  reason: string;
+}
+
+export interface StoryZeroWasteSuggestion {
+  field: BarRaiserAmplificationField;
+  label: string;
+  original: string;
+  cleaned: string;
+  removedTerms: string[];
+}
+
+export interface StoryDeliveryMetric {
+  id: "estimated_runtime" | "context_share" | "action_share" | "speech_defects";
+  label: string;
+  value: string;
+  note: string;
+  status: "good" | "watch" | "risk";
+}
+
+export interface StoryRoleScaleAssessment {
+  verdict: "aligned" | "at_risk";
+  summary: string;
+  rewriteMove: string;
+}
+
+export interface StoryCalibrationReport {
+  strictnessScore: number;
+  sourceAnchor: string;
+  ownershipBoxes: StoryBoundingBox[];
+  ghostMetrics: StoryGhostMetric[];
+  zeroWasteSuggestions: StoryZeroWasteSuggestion[];
+  redTeamFollowUps: string[];
+  deliveryMetrics: StoryDeliveryMetric[];
+  roleScale: StoryRoleScaleAssessment;
+}
+
+export interface PrepMomentumDashboard {
+  burnoutRisk: "low" | "medium" | "high";
+  burnoutSummary: string;
+  burnoutSignals: string[];
+  compDelta: number | null;
+  compSummary: string;
+  weeklyUpsideAtRisk: number | null;
+  cadenceSummary: string;
+  repetitionRisk: string;
+}
+
+export interface GameFilmEvent {
+  timestampSeconds: number;
+  label: string;
+  detail: string;
+  severity: "good" | "watch" | "risk";
+}
+
+export interface GameFilmBreakdown {
+  estimatedDurationSeconds: number | null;
+  fillerHits: number;
+  passiveVoiceHits: number;
+  weakVerbHits: number;
+  summary: string;
+  events: GameFilmEvent[];
+}
+
 export interface InterviewPrepProgress {
   version: 1;
   createdAt: string;
@@ -399,6 +483,7 @@ export interface InterviewPrepProgress {
   barRaiserHistory: BarRaiserReviewRecord[];
   stories: StarStory[];
   pitch: PitchPack;
+  careerProfile: InterviewCareerProfile;
   checklistDoneIds: string[];
 }
 
@@ -1043,6 +1128,31 @@ const PEOPLE_PATTERN =
   /\b(coach|coached|develop|developed|mentor|feedback|trust|conflict|respect|people|team member|associate)\b/gi;
 const URGENCY_PATTERN =
   /\b(deadline|pace|window|same day|urgent|truck|launch|recovery|at risk|high volume|peak)\b/gi;
+const PASSIVE_VOICE_PATTERN =
+  /\b(?:was|were|is|are|been|be)\s+\w+ed\b/gi;
+const WEAK_VERB_PATTERN =
+  /\b(helped|supported|assisted|worked on|was part of|participated in|handled tasks|involved in)\b/gi;
+const SCALE_SIGNAL_PATTERN =
+  /\b(associates?|people|team|teams|shift|shifts|sites?|network|cross-functional|org|organization|department|floor|process path|standard work|playbook|mechanism|cadence|system)\b/gi;
+const ZERO_WASTE_TERMS = [
+  "really",
+  "very",
+  "basically",
+  "kind of",
+  "sort of",
+  "actually",
+  "clearly",
+  "successfully",
+  "extremely",
+  "highly",
+  "huge",
+  "massive",
+  "significant",
+  "impactful",
+  "amazing",
+  "great",
+  "a lot",
+] as const;
 
 function toDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -1171,6 +1281,26 @@ function averageWordsPerSentence(value: string): number {
     sentences.reduce((sum, sentence) => sum + countWords(sentence), 0) /
     sentences.length
   );
+}
+
+function estimateSpokenSeconds(words: number, wordsPerMinute = 135): number {
+  if (words <= 0) {
+    return 0;
+  }
+
+  return Math.round((words / wordsPerMinute) * 60);
+}
+
+function formatMoney(value: number | null): string {
+  if (value === null) {
+    return "Not set";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function clampScore(value: number): number {
@@ -2442,6 +2572,39 @@ function sanitizePitch(input: Partial<PitchPack>): PitchPack {
   };
 }
 
+function sanitizeMoneyValue(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.round(value);
+}
+
+function sanitizeCareerProfile(
+  input: Partial<InterviewCareerProfile> | undefined,
+): InterviewCareerProfile {
+  return {
+    currentRole:
+      typeof input?.currentRole === "string"
+        ? input.currentRole.trim()
+        : "Process Assistant",
+    currentLevel:
+      typeof input?.currentLevel === "string"
+        ? input.currentLevel.trim()
+        : "L3 / Tier 3",
+    targetRole:
+      typeof input?.targetRole === "string"
+        ? input.targetRole.trim()
+        : "Area Manager",
+    targetLevel:
+      typeof input?.targetLevel === "string"
+        ? input.targetLevel.trim()
+        : "L4",
+    currentTotalComp: sanitizeMoneyValue(input?.currentTotalComp),
+    targetTotalComp: sanitizeMoneyValue(input?.targetTotalComp),
+  };
+}
+
 function sanitizeDrillStat(input: unknown): DrillStat {
   if (!input || typeof input !== "object") {
     return { attempted: 0, solid: 0, strong: 0 };
@@ -3355,6 +3518,514 @@ export function buildStoryScorecardSuggestions(
   ];
 }
 
+function getStoryFieldLabel(
+  field: BarRaiserAmplificationField,
+): string {
+  switch (field) {
+    case "title":
+      return "Title";
+    case "situation":
+      return "Situation";
+    case "task":
+      return "Task";
+    case "action":
+      return "Action";
+    case "result":
+      return "Result";
+    case "reflection":
+      return "Reflection";
+  }
+}
+
+function classifyStorySegment(
+  field: BarRaiserAmplificationField,
+  text: string,
+): StoryBoundingBox["classification"] {
+  if (countMatches(text, WEAK_VERB_PATTERN) > 0) {
+    return "fluff";
+  }
+  if (field === "result" || hasMetric(text) || countMatches(text, OUTCOME_PATTERN) > 0) {
+    return "evidence";
+  }
+  if (countMatches(text, TEAM_PATTERN) > countMatches(text, OWNERSHIP_PATTERN) && countMatches(text, TEAM_PATTERN) > 0) {
+    return "team";
+  }
+  if (countMatches(text, OWNERSHIP_PATTERN) > 0 || countMatches(text, DECISION_PATTERN) > 0) {
+    return "ownership";
+  }
+  return "context";
+}
+
+function getBoundingBoxReason(
+  classification: StoryBoundingBox["classification"],
+): string {
+  switch (classification) {
+    case "ownership":
+      return "This sentence points at what you personally changed, chose, escalated, or built.";
+    case "team":
+      return "This sentence leans on team language. Keep it only if it supports your direct leadership move.";
+    case "evidence":
+      return "This is hard proof or outcome signal. Protect it.";
+    case "fluff":
+      return "This is mostly soft phrasing or vague effort language. Tighten or replace it with proof.";
+    default:
+      return "This is contextual setup. Keep it short so it does not crowd out the signal.";
+  }
+}
+
+function buildZeroWasteSuggestion(
+  field: BarRaiserAmplificationField,
+  text: string,
+): StoryZeroWasteSuggestion | null {
+  const lowered = text.toLowerCase();
+  const removedTerms = ZERO_WASTE_TERMS.filter((term) =>
+    lowered.includes(term),
+  );
+
+  let cleaned = text;
+
+  for (const term of removedTerms) {
+    cleaned = cleaned.replace(new RegExp(`\\b${term.replace(/\s+/g, "\\s+")}\\b`, "gi"), "");
+  }
+
+  cleaned = cleaned
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .trim();
+
+  if (!cleaned || cleaned === text) {
+    return null;
+  }
+
+  return {
+    field,
+    label: getStoryFieldLabel(field),
+    original: text,
+    cleaned,
+    removedTerms,
+  };
+}
+
+function buildRoleScaleAssessment(
+  story: StoryDraft,
+  careerProfile: InterviewCareerProfile,
+): StoryRoleScaleAssessment {
+  const targetText = `${careerProfile.targetRole} ${careerProfile.targetLevel}`.toLowerCase();
+  const storyText = [
+    story.situation,
+    story.task,
+    story.action,
+    story.result,
+    story.reflection,
+  ].join(" ");
+  const scaleSignals = countMatches(storyText, SCALE_SIGNAL_PATTERN);
+  const peopleSignals = countMatches(storyText, PEOPLE_PATTERN);
+  const mechanismSignals = countMatches(storyText, STANDARD_WORK_PATTERN);
+
+  if (/area manager|l4|l5|manager|operations/i.test(targetText)) {
+    if (scaleSignals >= 3 && (peopleSignals > 0 || mechanismSignals > 0)) {
+      return {
+        verdict: "aligned",
+        summary:
+          "This story reads closer to manager scope because it shows team leverage, operating rhythm, or system-level ownership.",
+        rewriteMove:
+          "Keep the focus on the mechanism you built and the broader operating outcome, not only the task execution detail.",
+      };
+    }
+
+    return {
+      verdict: "at_risk",
+      summary:
+        "This story still reads closer to a strong PA executing well than an Area Manager owning the system at scale.",
+      rewriteMove:
+        "Rewrite the story so the outcome sounds like shift leadership: bigger scope, clearer system ownership, and the mechanism that scaled after you.",
+    };
+  }
+
+  return {
+    verdict: "aligned",
+    summary:
+      "The story scope is broadly aligned to the target role you entered.",
+    rewriteMove:
+      "Keep making the scope and operating leverage explicit so the next-level signal is easy to hear.",
+  };
+}
+
+export function buildStoryCalibrationReport(
+  story: Partial<StoryDraft>,
+  careerProfile?: Partial<InterviewCareerProfile>,
+): StoryCalibrationReport {
+  const safe = sanitizeStoryDraft(story);
+  const amplification = buildBarRaiserAmplification(safe);
+  const review = reviewStarStory(safe);
+  const profile = sanitizeCareerProfile(careerProfile);
+  const ownershipBoxes: StoryBoundingBox[] = (
+    [
+      ["situation", safe.situation],
+      ["task", safe.task],
+      ["action", safe.action],
+      ["result", safe.result],
+      ["reflection", safe.reflection],
+    ] as const
+  ).flatMap(([field, value]) =>
+    extractSentenceLikeSegments(value).map((segment) => {
+      const classification = classifyStorySegment(field, segment);
+
+      return {
+        field,
+        label: getStoryFieldLabel(field),
+        text: ensureSentence(segment),
+        classification,
+        reason: getBoundingBoxReason(classification),
+      } satisfies StoryBoundingBox;
+    }),
+  );
+
+  const ghostMetrics: StoryGhostMetric[] = [];
+
+  if (!hasMetric(safe.result)) {
+    ghostMetrics.push({
+      field: "result",
+      label: "Ghost metric close",
+      placeholder:
+        "I increased [Metric X] from [Y] to [Z] over [Timeframe] by implementing [Specific Action], which changed [Business Outcome].",
+      reason:
+        "This forces the result to land with a measurable delta instead of a vague claim.",
+    });
+  }
+  if (!countMatches(safe.action, TRADEOFF_PATTERN)) {
+    ghostMetrics.push({
+      field: "action",
+      label: "Ghost tradeoff line",
+      placeholder:
+        "I chose [Option A] over [Option B] because [Decision Rule], even though it meant [Constraint or Risk].",
+      reason:
+        "This plugs the hardest structural hole in weak stories: missing judgment.",
+    });
+  }
+  if (countWords(safe.reflection) < 6) {
+    ghostMetrics.push({
+      field: "reflection",
+      label: "Ghost lesson line",
+      placeholder:
+        "Since then, I built [Mechanism or Standard Work] into [Process] so the same miss does not repeat.",
+      reason:
+        "This gives the story a real leadership lesson instead of ending on activity alone.",
+    });
+  }
+
+  const zeroWasteSuggestions = (
+    [
+      ["situation", safe.situation],
+      ["task", safe.task],
+      ["action", safe.action],
+      ["result", safe.result],
+      ["reflection", safe.reflection],
+    ] as const
+  )
+    .map(([field, value]) => buildZeroWasteSuggestion(field, value))
+    .filter((item): item is StoryZeroWasteSuggestion => item !== null);
+
+  const totalWords =
+    countWords(safe.situation) +
+    countWords(safe.task) +
+    countWords(safe.action) +
+    countWords(safe.result) +
+    countWords(safe.reflection);
+  const estimatedRuntime = estimateSpokenSeconds(totalWords);
+  const openingShare =
+    totalWords > 0
+      ? Math.round(
+          ((countWords(safe.situation) + countWords(safe.task)) / totalWords) *
+            100,
+        )
+      : 0;
+  const actionShare =
+    totalWords > 0
+      ? Math.round((countWords(safe.action) / totalWords) * 100)
+      : 0;
+  const speechDefects =
+    countMatches(
+      [
+        safe.situation,
+        safe.task,
+        safe.action,
+        safe.result,
+        safe.reflection,
+      ].join(" "),
+      PASSIVE_VOICE_PATTERN,
+    ) +
+    countMatches(
+      [
+        safe.situation,
+        safe.task,
+        safe.action,
+        safe.result,
+        safe.reflection,
+      ].join(" "),
+      WEAK_VERB_PATTERN,
+    );
+  const deliveryMetrics: StoryDeliveryMetric[] = [
+    {
+      id: "estimated_runtime",
+      label: "Speech pack rate",
+      value: `${estimatedRuntime}s estimated`,
+      note:
+        estimatedRuntime <= 120
+          ? "This should fit a disciplined first answer."
+          : "The story is likely too long for a first pass. Zero waste it before you rehearse.",
+      status: estimatedRuntime <= 120 ? "good" : "risk",
+    },
+    {
+      id: "context_share",
+      label: "Context share",
+      value: `${openingShare}%`,
+      note:
+        openingShare <= 38
+          ? "The opening is lean enough to get to the signal fast."
+          : "Too much setup. Cut context until the interviewer reaches your action sooner.",
+      status: openingShare <= 38 ? "good" : openingShare <= 48 ? "watch" : "risk",
+    },
+    {
+      id: "action_share",
+      label: "Action share",
+      value: `${actionShare}%`,
+      note:
+        actionShare >= 35
+          ? "Action owns enough of the story to carry judgment."
+          : "Action is underpowered. Push more of the runtime into the decisions you made.",
+      status: actionShare >= 35 ? "good" : actionShare >= 28 ? "watch" : "risk",
+    },
+    {
+      id: "speech_defects",
+      label: "Narrative defects",
+      value: `${speechDefects}`,
+      note:
+        speechDefects === 0
+          ? "No obvious passive or weak-verb defects."
+          : "Each passive phrase or weak verb dilutes ownership. Replace them before you rehearse this out loud.",
+      status: speechDefects === 0 ? "good" : speechDefects <= 2 ? "watch" : "risk",
+    },
+  ];
+
+  const resultMetric = extractMetricSnippet(safe.result);
+  const redTeamFollowUps = [
+    resultMetric
+      ? `You said you moved ${resultMetric}. What broke downstream when you pushed that hard, and how did you repair it?`
+      : "You say the outcome improved. What is the exact metric, and what would the numbers have looked like if your move had failed?",
+    countMatches(safe.action, TRADEOFF_PATTERN) > 0
+      ? "What option did you reject, and why would that have been the worse call under the same constraints?"
+      : "I still do not hear the hard tradeoff. What did you deliberately deprioritize to protect the outcome?",
+    countMatches(safe.action, ALIGNMENT_PATTERN) > 0 || countMatches(safe.action, PEOPLE_PATTERN) > 0
+      ? "Who pushed back on your approach, and what did you do when alignment was not immediate?"
+      : "This still sounds individual. Where did you have to influence other people, and how did you know they were truly aligned?",
+  ];
+
+  return {
+    strictnessScore: clampScore(Math.max(0, review.score - 6 + (ghostMetrics.length ? 0 : 4))),
+    sourceAnchor:
+      safe.grounding?.sourceLabel ||
+      safe.title ||
+      "Current story draft",
+    ownershipBoxes,
+    ghostMetrics,
+    zeroWasteSuggestions,
+    redTeamFollowUps,
+    deliveryMetrics,
+    roleScale: buildRoleScaleAssessment(amplification.draft, profile),
+  };
+}
+
+export function buildPrepMomentumDashboard(
+  progress: InterviewPrepProgress,
+): PrepMomentumDashboard {
+  const recentReviews = progress.barRaiserHistory.slice(0, 8);
+  const recentDrills = progress.drillHistory.slice(0, 12);
+  const recentDurations = recentReviews
+    .map((entry) => entry.durationSeconds)
+    .filter((value): value is number => value !== null);
+  const averageDuration = recentDurations.length
+    ? Math.round(
+        recentDurations.reduce((sum, value) => sum + value, 0) /
+          recentDurations.length,
+      )
+    : 0;
+  const repeatedCategoryCount = recentReviews.reduce(
+    (result, entry) => {
+      result[entry.sourceCategoryId] = (result[entry.sourceCategoryId] ?? 0) + 1;
+      return result;
+    },
+    {} as Record<string, number>,
+  );
+  const heaviestCategory = Object.entries(repeatedCategoryCount).sort(
+    (left, right) => right[1] - left[1],
+  )[0];
+  const burnoutSignals: string[] = [];
+  let burnoutRisk: PrepMomentumDashboard["burnoutRisk"] = "low";
+
+  if (recentReviews.length >= 5) {
+    burnoutSignals.push(
+      `${recentReviews.length} harsh reviews are clustered in your recent window.`,
+    );
+    burnoutRisk = "medium";
+  }
+  if (averageDuration >= 150) {
+    burnoutSignals.push(
+      `Average recent answer length is ${averageDuration}s, which usually means you are rehearsing long and starting to sound scripted.`,
+    );
+    burnoutRisk = "high";
+  }
+  if (heaviestCategory && heaviestCategory[1] >= 3) {
+    burnoutSignals.push(
+      `You are leaning hard on ${heaviestCategory[0]} reps. That is useful until it starts to flatten your range.`,
+    );
+    burnoutRisk = burnoutRisk === "high" ? "high" : "medium";
+  }
+  if (!burnoutSignals.length) {
+    burnoutSignals.push(
+      "Your recent prep load looks sustainable. Keep rotating stories and categories so you stay sharp without sounding rehearsed.",
+    );
+  }
+
+  const compDelta =
+    progress.careerProfile.currentTotalComp !== null &&
+    progress.careerProfile.targetTotalComp !== null
+      ? Math.max(
+          0,
+          progress.careerProfile.targetTotalComp -
+            progress.careerProfile.currentTotalComp,
+        )
+      : null;
+  const weeklyUpsideAtRisk =
+    compDelta !== null ? Math.round(compDelta / 26) : null;
+
+  return {
+    burnoutRisk,
+    burnoutSummary:
+      burnoutRisk === "high"
+        ? "You are at risk of rehearsing yourself into robotic delivery. Rotate questions, shorten takes, and stop grinding the same answer."
+        : burnoutRisk === "medium"
+          ? "Prep load is rising. Keep the quality high, but vary categories and keep answers inside the target box."
+          : "Prep cadence is healthy right now. Protect consistency more than volume.",
+    burnoutSignals,
+    compDelta,
+    compSummary:
+      compDelta !== null
+        ? `${formatMoney(progress.careerProfile.currentTotalComp)} -> ${formatMoney(progress.careerProfile.targetTotalComp)} (${formatMoney(compDelta)} delta)`
+        : "Set your current and target total comp to quantify the upside you are chasing.",
+    weeklyUpsideAtRisk,
+    cadenceSummary:
+      recentDrills.length || recentReviews.length
+        ? `Recent cadence: ${recentDrills.length} drill reps and ${recentReviews.length} harsh reviews in the current window.`
+        : "No recent reps logged yet. The dashboard becomes useful once you start logging drills and harsh reviews.",
+    repetitionRisk: heaviestCategory
+      ? `${heaviestCategory[0]} shows up ${heaviestCategory[1]} times in your recent harsh-review window.`
+      : "No single category is dominating your recent harsh-review window yet.",
+  };
+}
+
+export function buildGameFilmBreakdown(
+  answer: string,
+  durationSeconds: number | null,
+  targetDurationSeconds: number,
+): GameFilmBreakdown {
+  const normalized = normalizeStoryField(answer);
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const estimatedDurationSeconds =
+    durationSeconds ?? estimateSpokenSeconds(words.length, 140);
+  const fillerHits = countMatches(normalized, FILLER_PATTERN);
+  const passiveVoiceHits = countMatches(normalized, PASSIVE_VOICE_PATTERN);
+  const weakVerbHits = countMatches(normalized, WEAK_VERB_PATTERN);
+  const secondsPerWord =
+    estimatedDurationSeconds && words.length
+      ? estimatedDurationSeconds / words.length
+      : 0;
+  const events: GameFilmEvent[] = [];
+
+  const addEvent = (
+    wordIndex: number,
+    label: string,
+    detail: string,
+    severity: GameFilmEvent["severity"],
+  ) => {
+    const timestampSeconds =
+      secondsPerWord > 0 ? Math.max(0, Math.round(wordIndex * secondsPerWord)) : 0;
+    events.push({
+      timestampSeconds,
+      label,
+      detail,
+      severity,
+    });
+  };
+
+  const fillerMatch = normalized.match(FILLER_PATTERN);
+  if (fillerMatch?.length) {
+    const firstFiller = fillerMatch[0];
+    const fillerIndex = words.findIndex((word) =>
+      word.toLowerCase().includes(firstFiller.toLowerCase()),
+    );
+
+    addEvent(
+      Math.max(0, fillerIndex),
+      "Filler leak",
+      `The answer starts leaking confidence around "${firstFiller}". Clean that up so the delivery sounds more deliberate.`,
+      "risk",
+    );
+  }
+
+  const metricIndex = words.findIndex((word) => /\d/.test(word));
+  if (metricIndex >= 0) {
+    addEvent(
+      metricIndex,
+      "Metric lands",
+      "This is where hard proof shows up in the take. The earlier it lands, the safer the answer feels.",
+      metricIndex * secondsPerWord <= targetDurationSeconds * 0.7 ? "good" : "watch",
+    );
+  }
+
+  const ownershipIndex = words.findIndex((word) => /^i$/i.test(word));
+  if (ownershipIndex >= 0) {
+    addEvent(
+      ownershipIndex,
+      "Ownership signal",
+      "This is where the answer first sounds personal instead of generic. Get this earlier if possible.",
+      ownershipIndex * secondsPerWord <= targetDurationSeconds * 0.35 ? "good" : "watch",
+    );
+  }
+
+  if (passiveVoiceHits > 0) {
+    addEvent(
+      Math.max(0, Math.round(words.length * 0.55)),
+      "Passive phrasing",
+      "The take slips into passive voice here, which weakens accountability.",
+      "risk",
+    );
+  }
+
+  if (durationSeconds !== null && durationSeconds > targetDurationSeconds) {
+    addEvent(
+      targetDurationSeconds,
+      "Time-box break",
+      "This is where the answer crosses the target duration and starts to feel heavy.",
+      "risk",
+    );
+  }
+
+  return {
+    estimatedDurationSeconds,
+    fillerHits,
+    passiveVoiceHits,
+    weakVerbHits,
+    summary:
+      events.length > 0
+        ? "Use the timestamps like game film. Tighten the opening, land ownership sooner, and get the proof on the board earlier."
+        : "No obvious timing or language events were flagged yet. Keep recording until the answer still sounds strong without the scorecard.",
+    events: events
+      .sort((left, right) => left.timestampSeconds - right.timestampSeconds)
+      .slice(0, 6),
+  };
+}
+
 export function reviewInterviewAnswer(
   question: InterviewQuestion,
   answer: string,
@@ -3675,7 +4346,7 @@ export function getRelatedQuestionPrompts(
     .slice(0, limit);
 }
 
-function getStorySourceBankPrompts(
+export function getStorySourceBankPrompts(
   story: StoryDraft,
   limit = 4,
 ): string[] {
@@ -4156,6 +4827,7 @@ export function createInitialInterviewProgress(
       future: "",
       whyHere: "",
     },
+    careerProfile: sanitizeCareerProfile(undefined),
     checklistDoneIds: [],
   };
 }
@@ -4335,6 +5007,9 @@ export function coerceInterviewProgress(
     barRaiserHistory,
     stories,
     pitch: sanitizePitch((input.pitch as Partial<PitchPack>) ?? {}),
+    careerProfile: sanitizeCareerProfile(
+      (input.careerProfile as Partial<InterviewCareerProfile>) ?? undefined,
+    ),
     checklistDoneIds: uniqueStrings(input.checklistDoneIds).filter((id) =>
       GAME_DAY_CHECKLIST.some((item) => item.id === id),
     ),
@@ -4356,6 +5031,21 @@ export function updatePitchPack(
     },
     now,
   );
+}
+
+export function updateCareerProfile(
+  progress: InterviewPrepProgress,
+  updates: Partial<InterviewCareerProfile>,
+  now: Date = new Date(),
+): InterviewPrepProgress {
+  return {
+    ...progress,
+    careerProfile: sanitizeCareerProfile({
+      ...progress.careerProfile,
+      ...updates,
+    }),
+    updatedAt: now.toISOString(),
+  };
 }
 
 export function toggleChecklistItem(

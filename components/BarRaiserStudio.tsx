@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import {
+  buildGameFilmBreakdown,
   getCompetencyById,
   getInterviewerLensById,
   INTERVIEWER_LENSES,
@@ -297,6 +298,10 @@ export default function BarRaiserStudio({
         ? getTimingFeedback(reviewDurationSeconds, targetDurationSeconds)
         : null,
     [reviewDurationSeconds, targetDurationSeconds],
+  );
+  const gameFilm = useMemo(
+    () => buildGameFilmBreakdown(answer, reviewDurationSeconds, targetDurationSeconds),
+    [answer, reviewDurationSeconds, targetDurationSeconds],
   );
   const currentReviewSignature = useMemo(() => {
     if (!selectedQuestion || !deferredAnswer.trim().length) {
@@ -1226,6 +1231,99 @@ export default function BarRaiserStudio({
               </div>
             </div>
           ) : null}
+
+          <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Game film breakdown
+                </p>
+                <h4 className="mt-1 text-lg font-semibold text-slate-950">
+                  Watch the tape instead of guessing what went wrong.
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {gameFilm.summary}
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                {formatClock(gameFilm.estimatedDurationSeconds ?? 0)} on tape
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[22px] bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Filler words
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {gameFilm.fillerHits}
+                </p>
+              </div>
+              <div className="rounded-[22px] bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Passive voice
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {gameFilm.passiveVoiceHits}
+                </p>
+              </div>
+              <div className="rounded-[22px] bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Weak verbs
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {gameFilm.weakVerbHits}
+                </p>
+              </div>
+              <div className="rounded-[22px] bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Target box
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {formatClock(targetDurationSeconds)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {gameFilm.events.length ? (
+                gameFilm.events.map((event) => (
+                  <div
+                    key={`${event.label}-${event.timestampSeconds}-${event.detail}`}
+                    className="rounded-[22px] border border-slate-200 bg-slate-50/85 p-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+                        {formatClock(event.timestampSeconds)}
+                      </span>
+                      <span
+                        className={classNames(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                          event.severity === "good"
+                            ? "bg-emerald-100 text-emerald-900"
+                            : event.severity === "watch"
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-rose-100 text-rose-900",
+                        )}
+                      >
+                        {event.severity}
+                      </span>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {event.label}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {event.detail}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                  Record or paste a fuller answer and the tape events will mark when ownership lands, when proof shows up, and where the answer starts leaking.
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="mt-4 grid gap-3 xl:grid-cols-5">
             {review.dimensions.map((dimension) => (

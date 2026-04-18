@@ -4,25 +4,25 @@
 
 :root {
   color-scheme: light;
-  --ink: #0f1b2a;
-  --muted-ink: #536477;
-  --panel-bg: rgba(248, 250, 252, 0.76);
-  --panel-edge: rgba(15, 23, 42, 0.08);
-  --gold: #d7a44a;
-  --cyan: #4d9ed9;
-  --teal: #179c94;
-  --coral: #ef765f;
+  --ink: #140d0f;
+  --muted-ink: #6d585d;
+  --panel-bg: rgba(246, 239, 241, 0.8);
+  --panel-edge: rgba(127, 29, 29, 0.16);
+  --gold: #7f1d1d;
+  --cyan: #dc2626;
+  --teal: #991b1b;
+  --coral: #ef4444;
 }
 
 .fluent-body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(circle at 12% 12%, rgba(215, 164, 74, 0.28), transparent 28%),
-    radial-gradient(circle at 88% 12%, rgba(77, 158, 217, 0.3), transparent 30%),
-    radial-gradient(circle at 84% 86%, rgba(23, 156, 148, 0.22), transparent 28%),
-    radial-gradient(circle at 18% 86%, rgba(239, 118, 95, 0.18), transparent 28%),
-    linear-gradient(145deg, #f7f3ec 0%, #edf6fb 52%, #f6faf5 100%);
+    radial-gradient(circle at 12% 12%, rgba(185, 28, 28, 0.28), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(127, 29, 29, 0.3), transparent 30%),
+    radial-gradient(circle at 84% 86%, rgba(39, 39, 42, 0.2), transparent 28%),
+    radial-gradient(circle at 18% 86%, rgba(239, 68, 68, 0.18), transparent 28%),
+    linear-gradient(145deg, #120d0e 0%, #1b1416 46%, #2a2225 100%);
   font-family: var(--font-body), 'Trebuchet MS', sans-serif;
 }
 
@@ -41,7 +41,7 @@
   height: 22rem;
   top: -8rem;
   right: -3rem;
-  background: rgba(77, 158, 217, 0.38);
+  background: rgba(185, 28, 28, 0.38);
 }
 
 .fluent-body::after {
@@ -49,7 +49,7 @@
   height: 18rem;
   bottom: -8rem;
   left: -4rem;
-  background: rgba(239, 118, 95, 0.28);
+  background: rgba(68, 64, 60, 0.32);
 }
 
 h1,
@@ -74,10 +74,10 @@ h5 {
 @keyframes pulse-soft {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(94, 177, 141, 0.22);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.22);
   }
   50% {
-    box-shadow: 0 0 0 14px rgba(94, 177, 141, 0);
+    box-shadow: 0 0 0 14px rgba(220, 38, 38, 0);
   }
 }
 
@@ -92,7 +92,7 @@ h5 {
 .glass-panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), var(--panel-bg));
   border: 1px solid var(--panel-edge);
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 44px rgba(13, 9, 10, 0.24);
   backdrop-filter: blur(14px);
 }
 
@@ -109,12 +109,12 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: rgba(77, 158, 217, 0.72);
-  box-shadow: 0 0 0 3px rgba(77, 158, 217, 0.18);
+  border-color: rgba(220, 38, 38, 0.72);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
 }
 
 button:focus-visible,
 a:focus-visible {
   @apply outline-none ring-2 ring-offset-2;
-  --tw-ring-color: rgba(77, 158, 217, 0.45);
+  --tw-ring-color: rgba(220, 38, 38, 0.45);
 }

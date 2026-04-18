@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Fraunces, Manrope } from 'next/font/google';
 
 import '@/app/globals.css';
@@ -18,6 +18,10 @@ const bodyFont = Manrope({
 export const metadata: Metadata = {
   title: 'Interview Command Center',
   description: 'An Amazon-first interview prep app with STAR story building, bar-raiser scoring, answer recording, and Leadership Principle drills.'
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0d090a'
 };
 
 export default function RootLayout({

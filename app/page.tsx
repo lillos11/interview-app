@@ -22,7 +22,9 @@ import {
   buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
+  buildPrepMomentumDashboard,
   buildStoryScorecardSuggestions,
+  buildStoryCalibrationReport,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -58,11 +60,13 @@ import {
   reviewStarStory,
   saveStarStory,
   toggleChecklistItem,
+  updateCareerProfile,
   updatePitchPack,
   type BarRaiserAmplificationField,
   type CompetencyId,
   type DrillRating,
   type InterviewAnswerReview,
+  type InterviewCareerProfile,
   type InterviewPrepProgress,
   type InterviewQuestion,
   type InterviewSourceFamily,
@@ -91,6 +95,13 @@ type StoryWriterField =
   | "actions"
   | "result"
   | "lesson";
+type CareerProfileField =
+  | "currentRole"
+  | "currentLevel"
+  | "targetRole"
+  | "targetLevel"
+  | "currentTotalComp"
+  | "targetTotalComp";
 
 const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "cockpit", label: "Cockpit" },
@@ -431,6 +442,18 @@ function readinessLabel(score: number): string {
   return "Early reps";
 }
 
+function formatCurrency(value: number | null): string {
+  if (value === null) {
+    return "Not set";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function countDrillRatings(
   ratings: readonly (DrillRating | null)[],
 ): Record<DrillRating, number> {
@@ -663,6 +686,10 @@ export default function HomePage() {
     () => reviewStarStory(storyDraft),
     [storyDraft],
   );
+  const storyCalibrationReport = useMemo(
+    () => buildStoryCalibrationReport(storyDraft, progress.careerProfile),
+    [progress.careerProfile, storyDraft],
+  );
   const liveStoryTips = useMemo(
     () => buildStarCoachTips(storyDraft),
     [storyDraft],
@@ -697,6 +724,10 @@ export default function HomePage() {
   );
   const amazonCoverageSummary = useMemo(
     () => getAmazonCoverageSummary(progress),
+    [progress],
+  );
+  const prepMomentumDashboard = useMemo(
+    () => buildPrepMomentumDashboard(progress),
     [progress],
   );
 
@@ -1036,6 +1067,27 @@ export default function HomePage() {
     );
   };
 
+  const updateCareerProfileField = (
+    field: CareerProfileField,
+    value: string,
+  ) => {
+    const normalizedValue =
+      field === "currentTotalComp" || field === "targetTotalComp"
+        ? (() => {
+            const digitsOnly = value.replace(/[^\d]/g, "");
+            return digitsOnly ? Number(digitsOnly) : null;
+          })()
+        : value;
+
+    setProgress((previous) =>
+      updateCareerProfile(
+        previous,
+        { [field]: normalizedValue } as Partial<InterviewCareerProfile>,
+        new Date(),
+      ),
+    );
+  };
+
   const updateStoryField = (field: EditableStoryField, value: string) => {
     setStoryDraft((previous) => ({
       ...previous,
@@ -1105,6 +1157,54 @@ export default function HomePage() {
     }));
     setStoryLoadNotice(
       `Added scorecard upgrade to ${fields.map((field) => field.replace(/_/g, " ")).join(" + ")}.`,
+    );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyCalibrationFieldValue = (
+    field: BarRaiserAmplificationField,
+    value: string,
+    notice: string,
+  ) => {
+    setStoryDraft((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+    setStoryLoadNotice(notice);
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyGhostMetric = (
+    field: "action" | "result" | "reflection",
+    placeholder: string,
+  ) => {
+    const existingValue = storyDraft[field].trim();
+    const nextValue = existingValue
+      ? `${existingValue} ${placeholder}`.trim()
+      : placeholder;
+
+    applyCalibrationFieldValue(
+      field,
+      nextValue,
+      `Added a ghost metric scaffold to ${field}.`,
+    );
+  };
+
+  const applyFullCalibrationPass = () => {
+    const nextDraft = { ...barRaiserAmplification.draft };
+
+    for (const ghost of storyCalibrationReport.ghostMetrics) {
+      const existingValue = nextDraft[ghost.field].trim();
+      nextDraft[ghost.field] = existingValue
+        ? `${existingValue} ${ghost.placeholder}`.trim()
+        : ghost.placeholder;
+    }
+
+    setStoryDraft(nextDraft);
+    setStoryLoadNotice(
+      `Applied the full calibration pass to ${nextDraft.title || "your story"}.`,
     );
     setActiveTab("star_lab");
     setStoryBuilderRevealTick((previous) => previous + 1);
@@ -1690,6 +1790,176 @@ export default function HomePage() {
                       your Amazon baseline.
                     </div>
                   )}
+                </div>
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                ROI and trajectory
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                See the scope jump and the upside your prep is buying.
+              </h2>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Current role
+                  </span>
+                  <input
+                    type="text"
+                    value={progress.careerProfile.currentRole}
+                    onChange={(event) =>
+                      updateCareerProfileField("currentRole", event.target.value)
+                    }
+                    placeholder="Process Assistant"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Current level
+                  </span>
+                  <input
+                    type="text"
+                    value={progress.careerProfile.currentLevel}
+                    onChange={(event) =>
+                      updateCareerProfileField("currentLevel", event.target.value)
+                    }
+                    placeholder="L3 / Tier 3"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Target role
+                  </span>
+                  <input
+                    type="text"
+                    value={progress.careerProfile.targetRole}
+                    onChange={(event) =>
+                      updateCareerProfileField("targetRole", event.target.value)
+                    }
+                    placeholder="Area Manager"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Target level
+                  </span>
+                  <input
+                    type="text"
+                    value={progress.careerProfile.targetLevel}
+                    onChange={(event) =>
+                      updateCareerProfileField("targetLevel", event.target.value)
+                    }
+                    placeholder="L4"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Current total comp
+                  </span>
+                  <input
+                    inputMode="numeric"
+                    type="text"
+                    value={
+                      progress.careerProfile.currentTotalComp?.toString() ?? ""
+                    }
+                    onChange={(event) =>
+                      updateCareerProfileField(
+                        "currentTotalComp",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="70000"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Target total comp
+                  </span>
+                  <input
+                    inputMode="numeric"
+                    type="text"
+                    value={
+                      progress.careerProfile.targetTotalComp?.toString() ?? ""
+                    }
+                    onChange={(event) =>
+                      updateCareerProfileField(
+                        "targetTotalComp",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="95000"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Package path
+                  </p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">
+                    {prepMomentumDashboard.compSummary}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Total upside
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {formatCurrency(prepMomentumDashboard.compDelta)}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Weekly upside at risk
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {formatCurrency(prepMomentumDashboard.weeklyUpsideAtRisk)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-slate-950 p-5 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                      Prep load and burnout
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/80">
+                      {prepMomentumDashboard.burnoutSummary}
+                    </p>
+                  </div>
+                  <span
+                    className={classNames(
+                      "rounded-full px-3 py-1 text-xs font-semibold",
+                      prepMomentumDashboard.burnoutRisk === "high"
+                        ? "bg-rose-300/15 text-rose-100"
+                        : prepMomentumDashboard.burnoutRisk === "medium"
+                          ? "bg-amber-300/15 text-amber-100"
+                          : "bg-emerald-300/15 text-emerald-100",
+                    )}
+                  >
+                    {prepMomentumDashboard.burnoutRisk} risk
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/82">
+                    {prepMomentumDashboard.cadenceSummary}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/82">
+                    {prepMomentumDashboard.repetitionRisk}
+                  </div>
+                  {prepMomentumDashboard.burnoutSignals.map((signal) => (
+                    <div
+                      key={signal}
+                      className="rounded-2xl border border-white/10 bg-black/10 p-3 text-sm leading-6 text-white/82"
+                    >
+                      {signal}
+                    </div>
+                  ))}
                 </div>
               </div>
             </article>
@@ -2727,6 +2997,248 @@ export default function HomePage() {
                           {item}
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      AI calibration engine
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                      Derender the fluff, isolate your signal, and force the missing proof.
+                    </h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+                      This layer treats the story like a high-bar data labeler. It boxes what you owned, what the team owned, what is just setup, and what still needs hard proof.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                    {storyCalibrationReport.strictnessScore}% strictness
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Bounding-box story analysis
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {storyCalibrationReport.ownershipBoxes.length ? (
+                        storyCalibrationReport.ownershipBoxes.map((box, index) => (
+                          <div
+                            key={`${box.field}-${index}-${box.text}`}
+                            className="rounded-2xl bg-white p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                                {box.label}
+                              </span>
+                              <span
+                                className={classNames(
+                                  "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                  box.classification === "ownership"
+                                    ? "bg-emerald-100 text-emerald-900"
+                                    : box.classification === "team"
+                                      ? "bg-amber-100 text-amber-900"
+                                      : box.classification === "evidence"
+                                        ? "bg-cyan-100 text-cyan-900"
+                                        : box.classification === "fluff"
+                                          ? "bg-rose-100 text-rose-900"
+                                          : "bg-slate-100 text-slate-700",
+                                )}
+                              >
+                                {box.classification}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-sm leading-6 text-slate-800">
+                              {box.text}
+                            </p>
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              {box.reason}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl bg-white p-3 text-sm leading-6 text-slate-600">
+                          Add more story detail and the calibration engine will box ownership, team blur, evidence, and fluff here.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Textual inpainting and ghost metrics
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {storyCalibrationReport.ghostMetrics.length ? (
+                          storyCalibrationReport.ghostMetrics.map((ghost) => (
+                            <div
+                              key={`${ghost.field}-${ghost.label}`}
+                              className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-3"
+                            >
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-900">
+                                {ghost.label}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-cyan-950">
+                                {ghost.placeholder}
+                              </p>
+                              <p className="mt-2 text-xs leading-5 text-cyan-900/80">
+                                {ghost.reason}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  applyGhostMetric(ghost.field, ghost.placeholder)
+                                }
+                                className="mt-3 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
+                              >
+                                Add this ghost scaffold
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl bg-white p-3 text-sm leading-6 text-slate-600">
+                            No ghost metrics are needed right now. The story already has enough structure for a hard rep.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Zero waste filter
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {storyCalibrationReport.zeroWasteSuggestions.length ? (
+                          storyCalibrationReport.zeroWasteSuggestions.map((item) => (
+                            <div
+                              key={`${item.field}-${item.cleaned}`}
+                              className="rounded-2xl bg-white p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                                  {item.label}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    applyCalibrationFieldValue(
+                                      item.field,
+                                      item.cleaned,
+                                      `Applied the zero-waste filter to ${item.label.toLowerCase()}.`,
+                                    )
+                                  }
+                                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800"
+                                >
+                                  Apply cut
+                                </button>
+                              </div>
+                              <p className="mt-3 text-sm leading-6 text-slate-500 line-through decoration-rose-400">
+                                {item.original}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-900">
+                                {item.cleaned}
+                              </p>
+                              <p className="mt-2 text-xs leading-5 text-slate-500">
+                                Removed: {item.removedTerms.join(", ")}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl bg-white p-3 text-sm leading-6 text-slate-600">
+                            The zero-waste filter did not find obvious adjective or buzzword waste in the current draft.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Role-scale enforcement
+                    </p>
+                    <div
+                      className={classNames(
+                        "mt-3 rounded-2xl p-4 text-sm leading-6",
+                        storyCalibrationReport.roleScale.verdict === "aligned"
+                          ? "bg-emerald-50 text-emerald-950"
+                          : "bg-amber-50 text-amber-950",
+                      )}
+                    >
+                      <p className="font-semibold">
+                        {storyCalibrationReport.roleScale.summary}
+                      </p>
+                      <p className="mt-2">
+                        {storyCalibrationReport.roleScale.rewriteMove}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {storyCalibrationReport.deliveryMetrics.map((metric) => (
+                        <div
+                          key={metric.id}
+                          className="rounded-2xl bg-white p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-950">
+                              {metric.label}
+                            </p>
+                            <span
+                              className={classNames(
+                                "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                metric.status === "good"
+                                  ? "bg-emerald-100 text-emerald-900"
+                                  : metric.status === "watch"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-rose-100 text-rose-900",
+                              )}
+                            >
+                              {metric.value}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-700">
+                            {metric.note}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] bg-slate-950 p-4 text-white">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Red team Bar Raiser mode
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/78">
+                      These are the aggressive follow-ups the system would throw based on this exact story, not another one.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {storyCalibrationReport.redTeamFollowUps.map((followUp) => (
+                        <div
+                          key={followUp}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/88"
+                        >
+                          {followUp}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={applyFullCalibrationPass}
+                        className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
+                      >
+                        Apply full calibration pass
+                      </button>
+                      <p className="self-center text-sm text-white/68">
+                        This applies the Bar Raiser rewrite plus any missing ghost scaffolds in one shot.
+                      </p>
                     </div>
                   </div>
                 </div>

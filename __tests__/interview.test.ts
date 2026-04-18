@@ -4,6 +4,9 @@ import {
   buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
+  buildGameFilmBreakdown,
+  buildPrepMomentumDashboard,
+  buildStoryCalibrationReport,
   buildStoryScorecardSuggestions,
   buildCurveballPack,
   buildStoryPressureTest,
@@ -28,6 +31,7 @@ import {
   saveStarStory,
   scoreStarStory,
   toggleChecklistItem,
+  updateCareerProfile,
   updatePitchPack,
 } from "../lib/interview";
 
@@ -576,6 +580,106 @@ describe("interview prep helpers", () => {
           suggestion.dimensionId === "evidence" &&
           suggestion.applyFields.includes("result"),
       ),
+    ).toBe(true);
+  });
+
+  it("builds a strict calibration report with ghost metrics, waste cuts, and role-scale pressure", () => {
+    const report = buildStoryCalibrationReport(
+      {
+        competency: "leadership",
+        categoryTags: ["deliver-results"],
+        title: "Very collaborative shift fix",
+        situation:
+          "It was a very amazing and extremely fast-paced shift with a lot going on across the building.",
+        task: "I needed to help the team get through the challenge.",
+        action:
+          "I helped support the team and worked with everyone on a really important path forward.",
+        result: "The team got faster and things improved.",
+        reflection: "I learned a lot.",
+      },
+      {
+        currentRole: "Process Assistant",
+        targetRole: "Area Manager",
+        targetLevel: "L4",
+      },
+    );
+
+    expect(report.strictnessScore).toBeGreaterThan(0);
+    expect(report.ghostMetrics.some((ghost) => ghost.field === "result")).toBe(
+      true,
+    );
+    expect(report.ghostMetrics.some((ghost) => ghost.field === "action")).toBe(
+      true,
+    );
+    expect(report.zeroWasteSuggestions.length).toBeGreaterThan(0);
+    expect(
+      report.ownershipBoxes.some((box) => box.classification === "fluff"),
+    ).toBe(true);
+    expect(report.roleScale.summary.length).toBeGreaterThan(20);
+    expect(report.roleScale.rewriteMove.length).toBeGreaterThan(20);
+    expect(report.redTeamFollowUps).toHaveLength(3);
+  });
+
+  it("builds a prep momentum dashboard that quantifies burnout and upside", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "deliver-results",
+    )!;
+    const now = new Date("2026-03-10T12:00:00.000Z");
+    let progress = updateCareerProfile(
+      createInitialInterviewProgress(now),
+      {
+        currentRole: "Process Assistant",
+        currentLevel: "L3",
+        targetRole: "Area Manager",
+        targetLevel: "L4",
+        currentTotalComp: 70000,
+        targetTotalComp: 110000,
+      },
+      now,
+    );
+
+    for (let index = 0; index < 5; index += 1) {
+      const review = reviewInterviewAnswer(
+        question,
+        [
+          "I had to recover a miss in flight.",
+          "I moved support and kept the work flowing.",
+          "We got through the shift and performance improved.",
+        ].join(" "),
+      );
+      progress = recordBarRaiserReview(
+        progress,
+        question,
+        review,
+        170,
+        new Date(now.getTime() + index * 86_400_000),
+      );
+    }
+
+    const dashboard = buildPrepMomentumDashboard(progress);
+
+    expect(dashboard.compDelta).toBe(40000);
+    expect(dashboard.weeklyUpsideAtRisk).toBeGreaterThan(0);
+    expect(dashboard.burnoutRisk).toBe("high");
+    expect(dashboard.burnoutSignals.length).toBeGreaterThan(1);
+    expect(dashboard.repetitionRisk.toLowerCase()).toContain("deliver-results");
+  });
+
+  it("builds a game-film breakdown with timestamped delivery defects", () => {
+    const breakdown = buildGameFilmBreakdown(
+      "Um I helped the team and tasks were delayed before I increased throughput by 15 percent.",
+      145,
+      120,
+    );
+
+    expect(breakdown.fillerHits).toBeGreaterThan(0);
+    expect(breakdown.passiveVoiceHits).toBeGreaterThan(0);
+    expect(breakdown.weakVerbHits).toBeGreaterThan(0);
+    expect(
+      breakdown.events.some((event) => event.label === "Metric lands"),
+    ).toBe(true);
+    expect(
+      breakdown.events.some((event) => event.label === "Time-box break"),
     ).toBe(true);
   });
 

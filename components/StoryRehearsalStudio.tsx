@@ -8,7 +8,11 @@ import {
   type ChangeEvent,
 } from "react";
 
-import { type StoryDraft } from "@/lib/interview";
+import {
+  buildStoryCalibrationReport,
+  getStorySourceBankPrompts,
+  type StoryDraft,
+} from "@/lib/interview";
 
 interface StoryRehearsalStudioProps {
   story: StoryDraft;
@@ -122,16 +126,29 @@ function buildCueCards(story: StoryDraft): Array<{ label: string; text: string }
   ].filter((item) => item.text.trim().length > 0);
 }
 
+function dedupePrompts(prompts: readonly string[]): string[] {
+  return [...new Set(prompts.map((prompt) => prompt.trim()).filter(Boolean))];
+}
+
 export default function StoryRehearsalStudio({
   story,
 }: StoryRehearsalStudioProps) {
   const [takes, setTakes] = useState<StoryTake[]>([]);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [narrationError, setNarrationError] = useState<string | null>(null);
   const [microphoneStatus, setMicrophoneStatus] =
     useState<MicrophoneStatus>("unknown");
   const [isRecording, setIsRecording] = useState(false);
   const [isPreparingRecorder, setIsPreparingRecorder] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
+  const [speechRate, setSpeechRate] = useState("0.95");
+  const [isNarrating, setIsNarrating] = useState(false);
+  const [isLoopingStory, setIsLoopingStory] = useState(false);
+  const [currentSpokenPrompt, setCurrentSpokenPrompt] = useState<string | null>(
+    null,
+  );
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -140,8 +157,22 @@ export default function StoryRehearsalStudio({
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const takesRef = useRef<StoryTake[]>([]);
   const recordingStartedAtRef = useRef<number | null>(null);
+  const speechSegmentsRef = useRef<string[]>([]);
+  const speechLoopRef = useRef(false);
 
   const cueCards = useMemo(() => buildCueCards(story), [story]);
+  const calibrationReport = useMemo(
+    () => buildStoryCalibrationReport(story),
+    [story],
+  );
+  const commuterPrompts = useMemo(
+    () =>
+      dedupePrompts([
+        ...getStorySourceBankPrompts(story),
+        ...calibrationReport.redTeamFollowUps,
+      ]).slice(0, 8),
+    [calibrationReport.redTeamFollowUps, story],
+  );
   const secureContext =
     typeof window !== "undefined"
       ? window.isSecureContext ||
@@ -153,10 +184,48 @@ export default function StoryRehearsalStudio({
     typeof window.MediaRecorder !== "undefined" &&
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia;
+  const speechSupported =
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window &&
+    typeof SpeechSynthesisUtterance !== "undefined";
+  const selectedVoice = useMemo(
+    () =>
+      voices.find((voice) => voice.voiceURI === selectedVoiceURI) ??
+      voices.find((voice) => voice.default) ??
+      voices[0] ??
+      null,
+    [selectedVoiceURI, voices],
+  );
+  const voiceOptions = voices.length ? voices : null;
+  const narrationRate = Number.parseFloat(speechRate) || 0.95;
 
   useEffect(() => {
     takesRef.current = takes;
   }, [takes]);
+
+  useEffect(() => {
+    if (!speechSupported) {
+      return;
+    }
+
+    const loadVoices = () => {
+      const nextVoices = window.speechSynthesis.getVoices();
+      setVoices(nextVoices);
+      setSelectedVoiceURI((previous) =>
+        previous ||
+        nextVoices.find((voice) => voice.default)?.voiceURI ||
+        nextVoices[0]?.voiceURI ||
+        "",
+      );
+    };
+
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
+    };
+  }, [speechSupported]);
 
   useEffect(() => {
     return () => {
@@ -174,8 +243,11 @@ export default function StoryRehearsalStudio({
       takesRef.current.forEach((take) => {
         window.URL.revokeObjectURL(take.url);
       });
+      if (speechSupported) {
+        window.speechSynthesis.cancel();
+      }
     };
-  }, []);
+  }, [speechSupported]);
 
   const stopTimer = () => {
     if (timerRef.current !== null) {
@@ -187,6 +259,17 @@ export default function StoryRehearsalStudio({
   const stopMicrophone = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  };
+
+  const stopNarration = () => {
+    if (speechSupported) {
+      window.speechSynthesis.cancel();
+    }
+    speechSegmentsRef.current = [];
+    speechLoopRef.current = false;
+    setIsNarrating(false);
+    setIsLoopingStory(false);
+    setCurrentSpokenPrompt(null);
   };
 
   const appendTake = (take: StoryTake) => {
@@ -278,6 +361,7 @@ export default function StoryRehearsalStudio({
     }
 
     try {
+      stopNarration();
       setIsPreparingRecorder(true);
       setRecordingError(null);
       setElapsedSeconds(0);
@@ -366,6 +450,106 @@ export default function StoryRehearsalStudio({
       setIsPreparingRecorder(false);
       recordingStartedAtRef.current = null;
     }
+  };
+
+  const speakSegments = (
+    segments: string[],
+    options: { loop: boolean; spokenPrompt?: string | null },
+  ) => {
+    if (!speechSupported) {
+      setNarrationError(
+        "This browser cannot play narrated rehearsal audio here. Use Safari or Chrome on the deployed app or localhost.",
+      );
+      return;
+    }
+
+    const cleanedSegments = segments
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    if (!cleanedSegments.length) {
+      setNarrationError(
+        "There is not enough grounded story content yet to narrate. Add more detail to the story first.",
+      );
+      return;
+    }
+
+    setNarrationError(null);
+    setCurrentSpokenPrompt(options.spokenPrompt ?? null);
+    setIsNarrating(true);
+    setIsLoopingStory(options.loop);
+    speechLoopRef.current = options.loop;
+    speechSegmentsRef.current = [...cleanedSegments];
+    window.speechSynthesis.cancel();
+
+    const playNext = () => {
+      const nextSegment = speechSegmentsRef.current.shift();
+
+      if (!nextSegment) {
+        if (speechLoopRef.current) {
+          speechSegmentsRef.current = [...cleanedSegments];
+          playNext();
+          return;
+        }
+
+        setIsNarrating(false);
+        setIsLoopingStory(false);
+        setCurrentSpokenPrompt(null);
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(nextSegment);
+      utterance.rate = narrationRate;
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+      utterance.onend = () => {
+        playNext();
+      };
+      utterance.onerror = () => {
+        setNarrationError(
+          "The browser dropped the narrated playback. Try again, or use the recorded take deck below.",
+        );
+        stopNarration();
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+
+    playNext();
+  };
+
+  const playStoryOnce = () => {
+    speakSegments(
+      cueCards.map((item) => `${item.label}. ${item.text}`),
+      { loop: false },
+    );
+  };
+
+  const startAudiobookLoop = () => {
+    speakSegments(
+      cueCards.map((item) => `${item.label}. ${item.text}`),
+      { loop: true },
+    );
+  };
+
+  const startLiveAudioDrill = () => {
+    const prompt =
+      commuterPrompts[Math.floor(Math.random() * commuterPrompts.length)];
+
+    if (!prompt) {
+      setNarrationError(
+        "There is no grounded question or red-team follow-up available for this story yet. Add category tags or more story detail first.",
+      );
+      return;
+    }
+
+    speakSegments(
+      [
+        "Bar Raiser audio drill.",
+        prompt,
+        "Answer this out loud now. Keep the setup lean, own the decision, and land the metric fast.",
+      ],
+      { loop: false, spokenPrompt: prompt },
+    );
   };
 
   const importTake = (event: ChangeEvent<HTMLInputElement>) => {
@@ -541,6 +725,173 @@ export default function StoryRehearsalStudio({
           {recordingError}
         </div>
       ) : null}
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Audiobook commuter mode
+              </p>
+              <h4 className="mt-1 text-xl font-semibold text-slate-950">
+                Loop the story hands-free until the wording sounds natural.
+              </h4>
+            </div>
+            <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+              {speechSupported ? "Voice ready" : "Voice unavailable"}
+            </span>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-slate-700">
+            This mode reads only the current grounded story and its attached source-bank pressure prompts. Use it while walking, driving, or cooling down after a rep so the structure becomes automatic without sounding scripted.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px]">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-700">Voice</span>
+              <select
+                value={selectedVoice?.voiceURI ?? ""}
+                onChange={(event) => setSelectedVoiceURI(event.target.value)}
+                disabled={!speechSupported || isNarrating}
+              >
+                {voiceOptions ? (
+                  voiceOptions.map((voice) => (
+                    <option key={voice.voiceURI || voice.name} value={voice.voiceURI}>
+                      {voice.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Default voice</option>
+                )}
+              </select>
+            </label>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-700">Rate</span>
+              <select
+                value={speechRate}
+                onChange={(event) => setSpeechRate(event.target.value)}
+                disabled={!speechSupported || isNarrating}
+              >
+                <option value="0.85">0.85x</option>
+                <option value="0.95">0.95x</option>
+                <option value="1.05">1.05x</option>
+                <option value="1.15">1.15x</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={playStoryOnce}
+              disabled={!speechSupported || isRecording || isPreparingRecorder}
+              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Play story once
+            </button>
+            <button
+              type="button"
+              onClick={startAudiobookLoop}
+              disabled={!speechSupported || isRecording || isPreparingRecorder}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Start audiobook loop
+            </button>
+            <button
+              type="button"
+              onClick={startLiveAudioDrill}
+              disabled={
+                !speechSupported ||
+                isRecording ||
+                isPreparingRecorder ||
+                commuterPrompts.length === 0
+              }
+              className="rounded-full border border-cyan-300 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-950 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Live audio drill
+            </button>
+            <button
+              type="button"
+              onClick={stopNarration}
+              disabled={!isNarrating}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Stop audio
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[22px] bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Story loop
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {isLoopingStory ? "Running" : "Idle"}
+              </p>
+            </div>
+            <div className="rounded-[22px] bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Current mode
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {isNarrating
+                  ? currentSpokenPrompt
+                    ? "Live audio drill"
+                    : "Audiobook playback"
+                  : "Stopped"}
+              </p>
+            </div>
+            <div className="rounded-[22px] bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Grounded prompts
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {commuterPrompts.length}
+              </p>
+            </div>
+          </div>
+
+          {currentSpokenPrompt ? (
+            <div className="mt-4 rounded-[22px] border border-cyan-200 bg-cyan-50/70 p-4 text-sm leading-6 text-cyan-950">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
+                Current drill
+              </p>
+              <p className="mt-2">{currentSpokenPrompt}</p>
+            </div>
+          ) : null}
+
+          {narrationError ? (
+            <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              {narrationError}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="rounded-[24px] bg-slate-950 p-5 text-white">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+            Grounded drill bank
+          </p>
+          <h4 className="mt-1 text-xl font-semibold">
+            The audio drill pulls only from this story and its source-bank pressure.
+          </h4>
+          <div className="mt-4 space-y-3">
+            {commuterPrompts.length ? (
+              commuterPrompts.map((prompt) => (
+                <div
+                  key={prompt}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/88"
+                >
+                  {prompt}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/78">
+                Add more category tagging or story detail and the commuter drill bank will populate with grounded prompts.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/82 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
