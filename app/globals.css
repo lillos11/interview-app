@@ -92,17 +92,34 @@ h5 {
 .glass-panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), var(--panel-bg));
   border: 1px solid var(--panel-edge);
-  box-shadow: 0 16px 44px rgba(13, 9, 10, 0.24);
+  box-shadow: 0 22px 70px rgba(13, 9, 10, 0.26);
   backdrop-filter: blur(14px);
+  padding: clamp(1.5rem, 2.2vw, 2.25rem) !important;
+}
+
+.glass-panel > * + * {
+  margin-top: clamp(1rem, 1.4vw, 1.5rem);
 }
 
 input,
 select,
 textarea {
-  @apply rounded-md border px-3 py-2 text-sm;
+  @apply rounded-xl border px-4 py-3 text-sm;
   border-color: rgba(15, 23, 42, 0.16);
   background: rgba(255, 255, 255, 0.84);
   color: var(--ink);
+}
+
+textarea {
+  line-height: 1.7;
+}
+
+select {
+  min-height: 2.75rem;
+}
+
+button {
+  line-height: 1.35;
 }
 
 input:focus,
@@ -117,4 +134,14 @@ button:focus-visible,
 a:focus-visible {
   @apply outline-none ring-2 ring-offset-2;
   --tw-ring-color: rgba(220, 38, 38, 0.45);
+}
+
+@media (max-width: 768px) {
+  .glass-panel {
+    padding: 1.25rem !important;
+  }
+
+  .glass-panel > * + * {
+    margin-top: 1rem;
+  }
 }

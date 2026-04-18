@@ -844,7 +844,7 @@ export default function BarRaiserStudio({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-6">
       <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -871,7 +871,7 @@ export default function BarRaiserStudio({
         </div>
       </article>
 
-      <div className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
+      <div className="grid gap-6 2xl:grid-cols-[0.88fr_1.12fr]">
         <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -950,7 +950,7 @@ export default function BarRaiserStudio({
           </div>
 
           {selectedQuestion ? (
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 space-y-6">
               <div className="rounded-[24px] bg-slate-950 p-5 text-white">
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-semibold text-cyan-100">
@@ -1189,7 +1189,7 @@ export default function BarRaiserStudio({
             className="hidden"
           />
 
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-4">
             <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                 Microphone
@@ -1333,7 +1333,7 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="mt-5 grid gap-4 sm:grid-cols-3 2xl:grid-cols-5">
             <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                 Words
@@ -1369,7 +1369,7 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="mt-4 grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
             <div className="rounded-[24px] border border-rose-200 bg-rose-50/80 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-900">
                 Brutal honesty
@@ -1440,7 +1440,7 @@ export default function BarRaiserStudio({
               </span>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
               <div className="rounded-[22px] bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Filler words
@@ -1475,7 +1475,7 @@ export default function BarRaiserStudio({
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-5 space-y-4">
               {gameFilm.events.length ? (
                 gameFilm.events.map((event) => (
                   <div
@@ -1515,7 +1515,7 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-5">
+          <div className="mt-5 grid gap-4 2xl:grid-cols-5">
             {review.dimensions.map((dimension) => (
               <div
                 key={dimension.id}
@@ -1536,8 +1536,8 @@ export default function BarRaiserStudio({
             ))}
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="space-y-4">
+          <div className="mt-4 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="space-y-6">
               <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   What this interviewer expects
@@ -1602,7 +1602,7 @@ export default function BarRaiserStudio({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="rounded-[24px] border border-slate-200 bg-white/82 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   What still misses

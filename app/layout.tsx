@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${headingFont.variable} ${bodyFont.variable}`}>
       <body className="fluent-body">
-        <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 md:px-8">
+        <main className="mx-auto min-h-screen w-full max-w-[1500px] px-5 py-10 md:px-10 md:py-12 xl:px-14">
           {children}
         </main>
       </body>

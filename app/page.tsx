@@ -346,7 +346,7 @@ function PrepDeckStoryCard({
   emphasisLabel?: string;
 }) {
   return (
-    <article className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+    <article className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -414,9 +414,9 @@ function PrepDeckStoryCard({
       </div>
 
       {expanded ? (
-        <div className="mt-4 space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="space-y-4">
+        <div className="mt-4 space-y-6">
+          <div className="grid gap-6 2xl:grid-cols-[1fr_1fr]">
+            <div className="space-y-6">
               <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Situation
@@ -451,7 +451,7 @@ function PrepDeckStoryCard({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Reflection
@@ -1626,19 +1626,19 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-6 pb-10 rise">
-      <header className="glass-panel rounded-[30px] border border-slate-200/70 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.08)] md:p-8">
-        <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
-          <div className="space-y-5">
+    <div className="space-y-10 pb-16 rise">
+      <header className="glass-panel rounded-[34px] border border-slate-200/70 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.1)] md:p-10">
+        <div className="grid gap-8 2xl:grid-cols-[1.32fr_0.88fr]">
+          <div className="space-y-7">
             <div className="inline-flex items-center rounded-full border border-slate-300/70 bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-700">
               Interview Command Center
             </div>
             <div className="space-y-3">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+              <h1 className="max-w-5xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl xl:text-6xl">
                 Amazon-first interview prep built around bulletproof stories,
                 harsh scoring, and real answer reps.
               </h1>
-              <p className="max-w-3xl text-base leading-7 text-slate-700">
+              <p className="max-w-4xl text-base leading-8 text-slate-700 md:text-lg">
                 Preserve the full question bank, drill by Leadership Principle
                 or functional competency, record live answers, get bar-raiser
                 feedback on weak spots, and show up with a sharper operating
@@ -1646,8 +1646,8 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+            <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
+              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Readiness
                 </p>
@@ -1660,7 +1660,7 @@ export default function HomePage() {
                   </span>
                 </div>
               </article>
-              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   STAR Stories
                 </p>
@@ -1671,7 +1671,7 @@ export default function HomePage() {
                   Saved and reusable for future loops
                 </p>
               </article>
-              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Drill Reps
                 </p>
@@ -1682,7 +1682,7 @@ export default function HomePage() {
                   Logged mock answers and hard-scored reps
                 </p>
               </article>
-              <article className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <article className="rounded-[26px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Prep Streak
                 </p>
@@ -1696,7 +1696,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <aside className="overflow-hidden rounded-[28px] bg-slate-950 p-5 text-slate-50 shadow-[0_18px_60px_rgba(15,23,42,0.28)]">
+          <aside className="overflow-hidden rounded-[32px] bg-slate-950 p-7 text-slate-50 shadow-[0_18px_60px_rgba(15,23,42,0.28)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
@@ -1736,8 +1736,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="glass-panel rounded-[26px] border border-slate-200/70 p-5">
-        <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+      <section className="glass-panel rounded-[30px] border border-slate-200/70 p-7">
+        <div className="grid gap-8 2xl:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Amazon taxonomy
@@ -1745,7 +1745,7 @@ export default function HomePage() {
             <h2 className="mt-1 text-xl font-semibold text-slate-950">
               Use LPs and functional competencies as the main navigation.
             </h2>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-3">
               {amazonFamilies.map((family) => (
                 <button
                   key={family}
@@ -1755,18 +1755,18 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     selectedFamily === family
                       ? "bg-slate-950 text-white shadow-md"
-                      : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
+                      : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
                   )}
                 >
                   {INTERVIEW_SOURCE_FAMILY_LABELS[family]}
                 </button>
               ))}
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-5 sm:grid-cols-2">
               {categoryGroups.map((group) => (
                 <div
                   key={group.family}
-                  className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                  className="rounded-[26px] border border-slate-200 bg-white/[0.08]2 p-5"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     {group.label}
@@ -1782,7 +1782,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Current category
@@ -1799,7 +1799,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => applyCategoryFilter("all")}
@@ -1807,7 +1807,7 @@ export default function HomePage() {
                   "rounded-full px-4 py-2 text-sm font-semibold transition",
                   effectiveSelectedCategoryId === "all"
                     ? "bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]"
-                    : "border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50",
+                    : "border border-cyan-200/80 bg-white/[0.08]0 text-cyan-900 hover:bg-cyan-50",
                 )}
               >
                 All {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
@@ -1821,7 +1821,7 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     effectiveSelectedCategoryId === category.id
                       ? "bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]"
-                      : "border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50",
+                      : "border border-cyan-200/80 bg-white/[0.08]0 text-cyan-900 hover:bg-cyan-50",
                   )}
                 >
                   {category.label}
@@ -1829,11 +1829,11 @@ export default function HomePage() {
               ))}
             </div>
 
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+            <div className="rounded-[26px] border border-slate-200 bg-slate-50/80 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Secondary coaching lane
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => applyCompetencyFilter("all")}
@@ -1841,7 +1841,7 @@ export default function HomePage() {
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     selectedCompetency === "all"
                       ? "bg-slate-950 text-white shadow-md"
-                      : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
+                      : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
                   )}
                 >
                   All lanes
@@ -1855,7 +1855,7 @@ export default function HomePage() {
                       "rounded-full px-4 py-2 text-sm font-semibold transition",
                       selectedCompetency === competency.id
                         ? "bg-slate-950 text-white shadow-md"
-                        : "border border-slate-300 bg-white/80 text-slate-700 hover:border-cyan-400",
+                        : "border border-slate-300 bg-white/[0.08]0 text-slate-700 hover:border-cyan-400",
                     )}
                   >
                     {competency.title}
@@ -1871,17 +1871,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      <nav className="flex flex-wrap gap-2">
+      <nav className="sticky top-3 z-20 flex flex-wrap gap-3 rounded-[28px] border border-white/10 bg-slate-950/78 p-3 shadow-[0_18px_60px_rgba(13,9,10,0.28)] backdrop-blur-xl">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={classNames(
-              "rounded-2xl px-4 py-2 text-sm font-semibold transition",
+              "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
               activeTab === tab.id
-                ? "bg-cyan-700 text-white shadow-[0_10px_30px_rgba(14,116,144,0.28)]"
-                : "border border-cyan-200/80 bg-white/80 text-cyan-900 hover:bg-cyan-50",
+                ? "bg-rose-600 text-white shadow-[0_10px_30px_rgba(127,29,29,0.34)]"
+                : "border border-white/10 bg-white/[0.08] text-white/82 hover:bg-white/[0.14]",
             )}
           >
             {tab.label}
@@ -1890,7 +1890,7 @@ export default function HomePage() {
       </nav>
 
       {activeTab === "cockpit" ? (
-        <section className="grid gap-4 lg:grid-cols-[1.25fr_0.95fr]">
+        <section className="grid gap-6 2xl:grid-cols-[1.25fr_0.95fr]">
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1907,7 +1907,7 @@ export default function HomePage() {
                 categories with proof
               </div>
             </div>
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-6">
               {competencyCards.map((competency) => (
                 <article
                   key={competency.id}
@@ -1962,7 +1962,7 @@ export default function HomePage() {
             </div>
           </article>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Amazon coverage
@@ -1970,8 +1970,8 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Track breadth across LPs, functional areas, and manager prompts.
               </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     LP coverage
                   </p>
@@ -1983,7 +1983,7 @@ export default function HomePage() {
                     Leadership Principles touched by stories or reps
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Functional coverage
                   </p>
@@ -1995,7 +1995,7 @@ export default function HomePage() {
                     Functional categories touched by stories or reps
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Manager question coverage
                   </p>
@@ -2007,7 +2007,7 @@ export default function HomePage() {
                     Manager-only prompts you have practiced so far
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Current category pool
                   </p>
@@ -2074,7 +2074,7 @@ export default function HomePage() {
                 See the scope jump and the upside your prep is buying.
               </h2>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-slate-700">
                     Current role
@@ -2167,8 +2167,8 @@ export default function HomePage() {
                 </label>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Package path
                   </p>
@@ -2176,7 +2176,7 @@ export default function HomePage() {
                     {prepMomentumDashboard.compSummary}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Total upside
                   </p>
@@ -2184,7 +2184,7 @@ export default function HomePage() {
                     {formatCurrency(prepMomentumDashboard.compDelta)}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Weekly upside at risk
                   </p>
@@ -2217,7 +2217,7 @@ export default function HomePage() {
                     {prepMomentumDashboard.burnoutRisk} risk
                   </span>
                 </div>
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/82">
                     {prepMomentumDashboard.cadenceSummary}
                   </div>
@@ -2235,8 +2235,8 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+              <div className="mt-4 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2254,7 +2254,7 @@ export default function HomePage() {
                     </span>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-5 grid gap-4 sm:grid-cols-3">
                     <div className="rounded-[22px] bg-slate-50 p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                         Required average
@@ -2285,7 +2285,7 @@ export default function HomePage() {
                     {readinessForecast.trajectoryNote}
                   </div>
 
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-5 space-y-4">
                     {readinessForecast.blockers.map((blocker) => (
                       <div
                         key={blocker}
@@ -2308,7 +2308,7 @@ export default function HomePage() {
                     {storySaturationReport.summary}
                   </p>
 
-                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <div className="mt-4 grid gap-6 2xl:grid-cols-2">
                     <div className="space-y-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
                         Over-indexed
@@ -2360,7 +2360,7 @@ export default function HomePage() {
                   </div>
 
                   {storySaturationReport.criticalSignalGaps.length ? (
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-5 space-y-4">
                       {storySaturationReport.criticalSignalGaps.map((gap) => (
                         <div
                           key={gap}
@@ -2382,11 +2382,11 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Close the gaps most likely to cost you the interview.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {passBlockers.map((blocker) => (
                   <div
                     key={blocker.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -2429,11 +2429,11 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Do the highest-leverage prep next.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {nextMoves.map((move) => (
                   <div
                     key={move}
-                    className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-2xl border border-slate-200 bg-white/[0.08]0 p-4 text-sm leading-6 text-slate-700"
                   >
                     {move}
                   </div>
@@ -2461,7 +2461,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3">
+              <div className="mt-5 grid gap-4">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-slate-700">
                     Present
@@ -2516,7 +2516,7 @@ export default function HomePage() {
                 </label>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-5">
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2571,7 +2571,7 @@ export default function HomePage() {
                   recentBarRaiserReviews.map((entry) => (
                     <div
                       key={`${entry.questionId}-${entry.date}`}
-                      className="rounded-2xl border border-slate-200 bg-white/80 p-4"
+                      className="rounded-2xl border border-slate-200 bg-white/[0.08]0 p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2624,8 +2624,8 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "star_lab" ? (
-        <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="space-y-4">
+        <section className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-6">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -2645,8 +2645,8 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     LP story coverage
                   </p>
@@ -2662,7 +2662,7 @@ export default function HomePage() {
                     Leadership Principles tagged by saved stories
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Functional story coverage
                   </p>
@@ -2678,7 +2678,7 @@ export default function HomePage() {
                     Functional areas tagged by saved stories
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Active category matches
                   </p>
@@ -2695,7 +2695,7 @@ export default function HomePage() {
                       : "Total saved stories"}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   <p className="text-sm font-semibold text-slate-950">
                     Current family question bank
                   </p>
@@ -2713,7 +2713,7 @@ export default function HomePage() {
                   recentStories.map((story) => (
                     <article
                       key={story.id}
-                      className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
+                      className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
@@ -2785,7 +2785,7 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Seed stories from the actual bank, not made-up extras.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {currentPromptSet.map((prompt) => (
                   <button
                     key={prompt.id}
@@ -2800,7 +2800,7 @@ export default function HomePage() {
                         toggleStoryCategoryTag(prompt.sourceCategoryId);
                       }
                     }}
-                    className="w-full rounded-[22px] border border-slate-200 bg-white/82 p-4 text-left text-sm leading-6 text-slate-700 transition hover:border-cyan-400"
+                    className="w-full rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-left text-sm leading-6 text-slate-700 transition hover:border-cyan-400"
                   >
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-900">
@@ -2863,7 +2863,7 @@ export default function HomePage() {
                     {prepDeckStoriesForFilter.length} shown
                   </span>
                 </div>
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   {prepDeckStoriesForFilter.map((story) => (
                     <PrepDeckStoryCard
                       key={story.id}
@@ -2879,7 +2879,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -2894,7 +2894,7 @@ export default function HomePage() {
                     {AMAZON_PREP_DECK_STORIES.length} total
                   </span>
                 </div>
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   {AMAZON_PREP_DECK_STORIES.map((story) => (
                     <PrepDeckStoryCard
                       key={story.id}
@@ -2934,7 +2934,7 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="mt-4 grid gap-3">
+              <div className="mt-5 grid gap-4">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-slate-700">
                     Title hint
@@ -3039,7 +3039,7 @@ export default function HomePage() {
                 <p className="mt-3 text-lg font-semibold text-white">
                   {storyWriterSuggestion.headline}
                 </p>
-                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <div className="mt-4 grid gap-6 2xl:grid-cols-[1fr_1fr]">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
                       Missing pieces
@@ -3135,7 +3135,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid gap-6">
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-slate-700">
                   Story title
@@ -3174,7 +3174,7 @@ export default function HomePage() {
                   {categoryGroups.map((group) => (
                     <div
                       key={group.family}
-                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                      className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                     >
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         {group.label}
@@ -3277,8 +3277,8 @@ export default function HomePage() {
               </label>
             </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
+            <div className="mt-5 grid gap-6 2xl:grid-cols-[1fr_0.9fr]">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5 lg:col-span-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3292,7 +3292,7 @@ export default function HomePage() {
                     {liveStoryReview.verdictLabel}
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3 xl:grid-cols-5">
+                <div className="mt-5 grid gap-4 2xl:grid-cols-5">
                   {liveStoryReview.dimensions.map((dimension) => {
                     const suggestion = storyScorecardSuggestions.find(
                       (item) => item.dimensionId === dimension.id,
@@ -3316,7 +3316,7 @@ export default function HomePage() {
                         </p>
 
                         {suggestion ? (
-                          <div className="mt-4 space-y-3">
+                          <div className="mt-5 space-y-4">
                             <div className="rounded-2xl border border-slate-200 bg-white p-3">
                               <div className="flex items-center justify-between gap-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -3378,7 +3378,7 @@ export default function HomePage() {
                     not sound like you.
                   </p>
                 </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <div className="mt-4 grid gap-6 2xl:grid-cols-[1fr_1fr]">
                   <div className="rounded-[22px] bg-emerald-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-900">
                       What already lands
@@ -3413,7 +3413,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5 lg:col-span-2">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5 lg:col-span-2">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3431,7 +3431,7 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <div className="mt-4 grid gap-6 2xl:grid-cols-[1fr_1fr]">
                   <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Bounding-box story analysis
@@ -3480,7 +3480,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Textual inpainting and ghost metrics
@@ -3615,7 +3615,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="mt-4 grid gap-6 2xl:grid-cols-[0.9fr_1.1fr]">
                   <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Role-scale enforcement
@@ -3636,7 +3636,7 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-5 space-y-4">
                       {storyCalibrationReport.deliveryMetrics.map((metric) => (
                         <div
                           key={metric.id}
@@ -3709,7 +3709,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Debrief readout
                 </p>
@@ -3741,7 +3741,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Repair plan
                 </p>
@@ -3754,7 +3754,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]0 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   STAR reminder
                 </p>
@@ -3783,7 +3783,7 @@ export default function HomePage() {
               <StoryRehearsalStudio story={storyDraft} />
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/82 p-5">
+            <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3801,7 +3801,7 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              <div className="mt-4 grid gap-6 2xl:grid-cols-3">
                 {storyPivotPack.nodes.length ? (
                   storyPivotPack.nodes.map((node) => (
                     <div
@@ -3852,8 +3852,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-              <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+            <div className="mt-5 grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
+              <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3868,7 +3868,7 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   {liveStoryPressureTest.vulnerabilities.length ? (
                     liveStoryPressureTest.vulnerabilities.map((item) => (
                       <div
@@ -3912,7 +3912,7 @@ export default function HomePage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
                   Source-bank prompts this story should survive
                 </p>
-                <div className="mt-4 space-y-3 text-sm leading-6 text-white/88">
+                <div className="mt-5 space-y-4 text-sm leading-6 text-white/88">
                   {liveStoryPressureTest.pressureQuestions.length ? (
                     liveStoryPressureTest.pressureQuestions.map((question) => (
                       <div
@@ -3994,9 +3994,9 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+              <div className="mt-4 grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
                 <div className="lg:col-span-2">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
                     {barRaiserAmplification.dimensionGoals.map((dimension) => (
                       <div
                         key={dimension.id}
@@ -4037,7 +4037,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
                       Bar Raiser readout
@@ -4121,12 +4121,12 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
                       Section-by-section surgery
                     </p>
-                    <div className="mt-3 space-y-4">
+                    <div className="mt-3 space-y-6">
                       {barRaiserAmplification.sectionUpgrades.length ? (
                         barRaiserAmplification.sectionUpgrades.map((item) => (
                           <div
@@ -4156,7 +4156,7 @@ export default function HomePage() {
                               </button>
                             </div>
 
-                            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                            <div className="mt-5 grid gap-4 lg:grid-cols-2">
                               <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
                                   Before
@@ -4190,7 +4190,7 @@ export default function HomePage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
                       Amplified draft
                     </p>
-                    <div className="mt-4 grid gap-3">
+                    <div className="mt-5 grid gap-4">
                       <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                           Title
@@ -4265,7 +4265,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+            <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/[0.08]2 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -4303,8 +4303,8 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="space-y-4">
+              <div className="mt-4 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="space-y-6">
                   <div className="rounded-[22px] border border-cyan-200 bg-cyan-50/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
                       What changed
@@ -4351,12 +4351,12 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="rounded-[22px] border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Polished story draft
                     </p>
-                    <div className="mt-4 grid gap-3">
+                    <div className="mt-5 grid gap-4">
                       <div className="rounded-2xl bg-slate-50 p-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           Title
@@ -4401,7 +4401,7 @@ export default function HomePage() {
                     <p className="mt-3 text-sm leading-7 text-white/88">
                       {eliteStoryPolish.polishedReview.debriefReadout}
                     </p>
-                    <div className="mt-4 space-y-3 text-sm leading-6 text-white/82">
+                    <div className="mt-5 space-y-4 text-sm leading-6 text-white/82">
                       {eliteStoryPolish.polishedReview.repairPlan.map((item) => (
                         <div
                           key={item}
@@ -4451,7 +4451,7 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "drills" ? (
-        <section className="space-y-4">
+        <section className="space-y-6">
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -4511,8 +4511,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Available prompts
                 </p>
@@ -4520,7 +4520,7 @@ export default function HomePage() {
                   {filteredQuestions.length}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Strong ratings
                 </p>
@@ -4532,7 +4532,7 @@ export default function HomePage() {
                   }
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Current focus
                 </p>
@@ -4563,18 +4563,18 @@ export default function HomePage() {
                   {enduranceLoopPlan.summary}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white/82 px-4 py-3 text-sm text-slate-700">
+              <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 px-4 py-3 text-sm text-slate-700">
                 <div>{enduranceLoopPlan.totalRounds} rounds</div>
                 <div className="mt-1">{enduranceLoopPlan.totalQuestions} prompts</div>
                 <div className="mt-1">{enduranceLoopPlan.totalMinutes} minutes</div>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className="mt-4 grid gap-6 2xl:grid-cols-2">
               {enduranceLoopPlan.rounds.map((round) => (
                 <div
                   key={round.id}
-                  className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
+                  className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
@@ -4657,12 +4657,12 @@ export default function HomePage() {
               </div>
 
               {enduranceSession ? (
-                <div className="mt-4 grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
+                <div className="mt-4 grid gap-6 2xl:grid-cols-[0.96fr_1.04fr]">
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
                       Current stack state
                     </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-5 grid gap-4 sm:grid-cols-3">
                       <div className="rounded-2xl bg-black/20 p-3">
                         <p className="text-xs uppercase tracking-[0.14em] text-white/50">
                           Remaining
@@ -4851,8 +4851,8 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
-                  <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                  <div className="mt-5 grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         A strong answer includes
                       </p>
@@ -4899,7 +4899,7 @@ export default function HomePage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                    <div className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Self score
                       </p>
@@ -4975,7 +4975,7 @@ export default function HomePage() {
                 {(Object.keys(ratingMeta) as DrillRating[]).map((rating) => (
                   <div
                     key={rating}
-                    className="rounded-[22px] border border-slate-200 bg-white/80 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4"
                   >
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       {ratingMeta[rating].label}
@@ -5023,7 +5023,7 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "frameworks" ? (
-        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -5043,7 +5043,7 @@ export default function HomePage() {
 
             {currentQuestionBankEntry ? (
               <>
-                <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/82 p-6">
+                <div className="mt-5 rounded-[28px] border border-slate-200 bg-white/[0.08]2 p-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
                       {currentQuestionBankEntry.sourceCategoryLabel}
@@ -5118,7 +5118,7 @@ export default function HomePage() {
             )}
           </article>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Category inventory
@@ -5133,11 +5133,11 @@ export default function HomePage() {
                 </span>{" "}
                 imported prompts.
               </p>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {selectedFamilyCategories.map((category) => (
                   <div
                     key={category.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/80 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -5166,7 +5166,7 @@ export default function HomePage() {
               </h2>
               {currentQuestionBankEntry && currentQuestionReadiness ? (
                 <>
-                  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={classNames(
@@ -5189,12 +5189,12 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-5 space-y-4">
                     {currentQuestionMatchedStories.length ? (
                       currentQuestionMatchedStories.map((story) => (
                         <div
                           key={story.id}
-                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                          className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
@@ -5224,7 +5224,7 @@ export default function HomePage() {
                       currentQuestionPrepDeckStories.map((story) => (
                         <div
                           key={story.id}
-                          className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                          className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
@@ -5281,14 +5281,14 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Current filter summary
               </p>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <div className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   Active family:{" "}
                   <span className="font-semibold text-slate-950">
                     {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   Active category:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCategory
@@ -5296,7 +5296,7 @@ export default function HomePage() {
                       : "All categories"}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]0 p-4">
                   Active coaching lane:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCompetency === "all"
@@ -5311,7 +5311,7 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "ops_lab" ? (
-        <section className="space-y-4">
+        <section className="space-y-6">
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -5343,7 +5343,7 @@ export default function HomePage() {
             </div>
           </article>
 
-          <div className="grid gap-4 xl:grid-cols-[1.04fr_0.96fr]">
+          <div className="grid gap-6 2xl:grid-cols-[1.04fr_0.96fr]">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -5359,7 +5359,7 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="mt-4 grid gap-6 lg:grid-cols-2">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-slate-700">
                     Baseline instructions
@@ -5384,8 +5384,8 @@ export default function HomePage() {
                 </label>
               </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+              <div className="mt-5 grid gap-4 md:grid-cols-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Baseline
                   </p>
@@ -5393,7 +5393,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.baselineScore}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Candidate
                   </p>
@@ -5401,7 +5401,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.candidateScore}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Delta
                   </p>
@@ -5417,7 +5417,7 @@ export default function HomePage() {
                     {promptAdherenceMatrix.delta}%
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                     Gate
                   </p>
@@ -5433,11 +5433,11 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {promptAdherenceMatrix.results.map((result) => (
                   <div
                     key={result.probeId}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -5517,7 +5517,7 @@ export default function HomePage() {
               </div>
             </article>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -5562,7 +5562,7 @@ export default function HomePage() {
                   />
                 </label>
 
-                <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     X-ray canvas
                   </p>
@@ -5571,12 +5571,12 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   {opsXRayReport.windows.length ? (
                     opsXRayReport.windows.map((window) => (
                       <div
                         key={window.id}
-                        className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                        className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -5685,8 +5685,8 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <div className="mt-5 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Latest score
                     </p>
@@ -5697,7 +5697,7 @@ export default function HomePage() {
                         .find((point) => point.score !== null)?.score ?? "--"}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Latest pack rate
                     </p>
@@ -5708,7 +5708,7 @@ export default function HomePage() {
                         .find((point) => point.packRate !== null)?.packRate ?? "--"}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                       Memory decay watch
                     </p>
@@ -5721,7 +5721,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
                   {prepTrendSeries.slice(-6).map((point) => (
                     <div
                       key={point.day}
@@ -5759,8 +5759,8 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "game_day" ? (
-        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <div className="space-y-4">
+        <section className="grid gap-6 2xl:grid-cols-[1fr_1fr]">
+          <div className="space-y-6">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Execution checklist
@@ -5768,11 +5768,11 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Make the day predictable before it starts.
               </h2>
-              <div className="mt-5 space-y-4">
+              <div className="mt-5 space-y-6">
                 {checklistByPhase.map((group) => (
                   <div
                     key={group.phase}
-                    className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
+                    className="rounded-[24px] border border-slate-200 bg-white/[0.08]2 p-4"
                   >
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                       {group.label}
@@ -5819,7 +5819,7 @@ export default function HomePage() {
             </article>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Interview day reminders
@@ -5827,11 +5827,11 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Use the story bank on the day, not just before it.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {AMAZON_PREP_DECK_INTERVIEW_DAY_REMINDERS.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700"
                   >
                     {item}
                   </div>
@@ -5861,7 +5861,7 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Walk in with a no-repeat story map.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {AMAZON_PREP_DECK_PANEL_PLAN.map((entry) => {
                   const primaryStory = getPrepDeckStoryById(entry.primaryStoryId);
                   const backupStory = getPrepDeckStoryById(entry.backupStoryId);
@@ -5869,7 +5869,7 @@ export default function HomePage() {
                   return (
                     <div
                       key={`${entry.interviewer}-${entry.categoryId}`}
-                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                      className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
@@ -5904,11 +5904,11 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Prepare for the ugly moments, not just the clean answers.
               </h2>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {INTERVIEW_RESCUE_SCRIPTS.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-slate-950">
@@ -5936,14 +5936,14 @@ export default function HomePage() {
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
                 Stay inside your real bank on game day.
               </h2>
-              <div className="mt-4 space-y-3">
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+              <div className="mt-5 space-y-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
                   Active family:{" "}
                   <span className="font-semibold text-slate-950">
                     {INTERVIEW_SOURCE_FAMILY_LABELS[selectedFamily]}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
                   Active category:{" "}
                   <span className="font-semibold text-slate-950">
                     {selectedCategory
@@ -5951,13 +5951,13 @@ export default function HomePage() {
                       : "All categories"}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
                   Prompt count in current filter:{" "}
                   <span className="font-semibold text-slate-950">
                     {filteredQuestions.length}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
                   Manager-only prompts in current filter:{" "}
                   <span className="font-semibold text-slate-950">
                     {
@@ -5967,7 +5967,7 @@ export default function HomePage() {
                     }
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700">
+                <div className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700">
                   Keep your final reps anchored to the imported bank so your
                   practice language matches the real loop.
                 </div>
@@ -5978,11 +5978,11 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Negotiation posture
               </p>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {NEGOTIATION_REMINDERS.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-[22px] border border-slate-200 bg-white/[0.08]2 p-4 text-sm leading-6 text-slate-700"
                   >
                     {item}
                   </div>
@@ -5994,7 +5994,7 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Red flags
               </p>
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {RED_FLAGS.map((item) => (
                   <div
                     key={item}

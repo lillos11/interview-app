@@ -600,7 +600,7 @@ export default function StoryRehearsalStudio({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="mt-5 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -615,7 +615,7 @@ export default function StoryRehearsalStudio({
               {cueCards.length} active sections
             </span>
           </div>
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             {cueCards.length ? (
               cueCards.map((item) => (
                 <div
@@ -726,7 +726,7 @@ export default function StoryRehearsalStudio({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="mt-5 grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -746,7 +746,7 @@ export default function StoryRehearsalStudio({
             This mode reads only the current grounded story and its attached source-bank pressure prompts. Use it while walking, driving, or cooling down after a rep so the structure becomes automatic without sounding scripted.
           </p>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px]">
+          <div className="mt-5 grid gap-4 md:grid-cols-[1fr_180px]">
             <label className="grid gap-2">
               <span className="text-sm font-medium text-slate-700">Voice</span>
               <select
@@ -820,7 +820,7 @@ export default function StoryRehearsalStudio({
             </button>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div className="rounded-[22px] bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Story loop
@@ -874,7 +874,7 @@ export default function StoryRehearsalStudio({
           <h4 className="mt-1 text-xl font-semibold">
             The audio drill pulls only from this story and its source-bank pressure.
           </h4>
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             {commuterPrompts.length ? (
               commuterPrompts.map((prompt) => (
                 <div
@@ -914,7 +914,7 @@ export default function StoryRehearsalStudio({
           ) : null}
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-5 space-y-4">
           {takes.length ? (
             takes.map((take) => (
               <div

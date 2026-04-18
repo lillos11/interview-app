@@ -331,8 +331,8 @@ export default function ExecutiveCoachPanel({
   };
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-      <div className="space-y-4">
+    <section className="grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
+      <div className="space-y-6">
         <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
             Executive context
@@ -340,7 +340,7 @@ export default function ExecutiveCoachPanel({
           <h2 className="mt-1 text-2xl font-semibold text-slate-950">
             Coach the lane you are actually in.
           </h2>
-          <div className="mt-4 grid gap-3">
+          <div className="mt-5 grid gap-4">
             <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4 text-sm text-slate-700">
               Family:{" "}
               <span className="font-semibold text-slate-950">
@@ -426,7 +426,7 @@ export default function ExecutiveCoachPanel({
           you are still avoiding.
         </p>
 
-        <div className="mt-5 space-y-4">
+        <div className="mt-5 space-y-6">
           {messages.length ? (
             messages.map((message) =>
               message.role === "user" ? (
