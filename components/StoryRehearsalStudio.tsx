@@ -153,7 +153,6 @@ export default function StoryRehearsalStudio({
     typeof window.MediaRecorder !== "undefined" &&
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia;
-  const canAttemptRecording = recordingSupported && secureContext;
 
   useEffect(() => {
     takesRef.current = takes;
@@ -472,7 +471,7 @@ export default function StoryRehearsalStudio({
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isPreparingRecorder || !canAttemptRecording}
+              disabled={isPreparingRecorder}
               className={classNames(
                 "rounded-full px-5 py-3 text-sm font-semibold shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
                 isRecording

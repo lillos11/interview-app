@@ -939,7 +939,7 @@ export default function BarRaiserStudio({
               <button
                 type="button"
                 onClick={isRecording ? stopRecording : startRecording}
-                disabled={isPreparingRecorder || !canAttemptRecording}
+                disabled={isPreparingRecorder}
                 className={classNames(
                   "rounded-full px-5 py-3 text-sm font-semibold shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
                   isRecording
@@ -952,7 +952,7 @@ export default function BarRaiserStudio({
               <button
                 type="button"
                 onClick={requestMicrophoneAccess}
-                disabled={isRecording || isPreparingRecorder || !canAttemptRecording}
+                disabled={isRecording || isPreparingRecorder}
                 className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Check microphone
@@ -976,7 +976,7 @@ export default function BarRaiserStudio({
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isPreparingRecorder || !canAttemptRecording}
+              disabled={isPreparingRecorder}
               className={classNames(
                 "rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
                 isRecording
