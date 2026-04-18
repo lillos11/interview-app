@@ -1068,6 +1068,19 @@ export function buildPrepDeckStoryDraft(
     action: story.action,
     result: story.result,
     reflection: story.whatChanged || story.reflection,
+    grounding: {
+      kind: "prep_bank",
+      sourceId: story.id,
+      sourceLabel: `Story bank ${story.storyNumber}: ${story.title}`,
+      snapshot: {
+        title: story.title,
+        situation: story.situation,
+        task: story.task,
+        action: story.action,
+        result: story.result,
+        reflection: story.whatChanged || story.reflection,
+      },
+    },
   };
 }
 

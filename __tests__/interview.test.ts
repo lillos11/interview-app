@@ -235,6 +235,10 @@ describe("interview prep helpers", () => {
       "think-big",
       "vision-and-strategy",
     ]);
+    expect(saved.stories[0]?.grounding?.kind).toBe("manual");
+    expect(updated.stories[0]?.grounding?.snapshot.action).toContain(
+      "daily exec updates",
+    );
     expect(removed.stories).toEqual([]);
   });
 
@@ -497,6 +501,44 @@ describe("interview prep helpers", () => {
         INTERVIEW_QUESTIONS.some((question) => question.prompt === prompt),
       ),
     ).toBe(true);
+  });
+
+  it("stays grounded to the active source story instead of crossing stories", () => {
+    const amplified = buildBarRaiserAmplification({
+      competency: "ownership",
+      categoryTags: ["deliver-results", "ownership"],
+      title: "Edited Prime Day recovery",
+      situation:
+        "Prime Day volume spiked and the CPT window was compressing quickly.",
+      task:
+        "I had to recover the window with the people already on the floor.",
+      action:
+        "I checked pace against the required rate and moved one packer into Singles.",
+      result: "",
+      reflection: "",
+      grounding: {
+        kind: "prep_bank",
+        sourceId: "story-3",
+        sourceLabel: "Story bank 3: The Prime Day CPT Recovery",
+        snapshot: {
+          title: "The Prime Day CPT Recovery",
+          situation:
+            "During Prime Day at MKC6, I had 5,500 CPTs due inside a two-hour window with no extra headcount available to pull.",
+          task:
+            "I had to clear the window on time using the people and stations already on the floor while making staffing calls quickly enough to recover in flight.",
+          action:
+            "I tracked the scanned bucket and actual throughput against the required pace, spotted that we were trending short, moved a packer from a lower-priority path to Singles, and added a dwell lead to remove the handoff delay between packing and dock.",
+          result:
+            "We cleared 5,478 of 5,500 CPTs, a 99.6% recovery rate. The 22 that missed were late-arriving volume outside our control, so we had zero preventable CPT misses.",
+          reflection:
+            "In a live operation, waiting for perfect information is usually the same thing as choosing to lose. Speed matters when the data already tells you what lever to pull.",
+        },
+      },
+    });
+
+    expect(amplified.draft.grounding?.sourceId).toBe("story-3");
+    expect(amplified.draft.result).toContain("5,478");
+    expect(amplified.draft.result).toContain("99.6%");
   });
 
   it("builds scorecard suggestions with examples and applyable fields", () => {

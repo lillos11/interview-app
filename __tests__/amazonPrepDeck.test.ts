@@ -53,6 +53,9 @@ describe("amazon prep deck", () => {
       expect.arrayContaining(["ownership", "bias-for-action"]),
     );
     expect(draft.action).toContain("I called RME directly");
+    expect(draft.grounding?.kind).toBe("prep_bank");
+    expect(draft.grounding?.sourceId).toBe("story-7");
+    expect(draft.grounding?.snapshot.result).toContain("10,000");
   });
 
   it("keeps the story-bank follow-up prep available", () => {

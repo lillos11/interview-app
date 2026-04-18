@@ -1170,6 +1170,7 @@ export default function HomePage() {
       action: story.action,
       result: story.result,
       reflection: story.reflection,
+      grounding: story.grounding,
     });
     setEditingStoryId(story.id);
     setStoryLoadNotice(`Loaded saved story: ${story.title || "Untitled story"}.`);
@@ -2436,6 +2437,22 @@ export default function HomePage() {
                 {storyLoadNotice}
               </div>
             ) : null}
+
+            <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Story grounding
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {storyDraft.grounding?.sourceLabel || "Current manual story draft"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {storyDraft.grounding?.kind === "prep_bank"
+                  ? "Amplify, polish, scorecard fixes, and saved edits stay anchored to this imported story plus your current edits. They do not borrow facts from other stories."
+                  : storyDraft.grounding
+                    ? "This story is grounded to its own saved snapshot. The editing features stay inside this story instead of mixing details from other stories."
+                    : "This draft is manual right now. Once you save it, the app will ground future edits to this story so features stay aligned."}
+              </p>
+            </div>
 
             <div className="mt-5 grid gap-4">
               <label className="grid gap-2">

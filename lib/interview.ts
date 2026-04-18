@@ -106,6 +106,22 @@ export interface InterviewStage {
   detail: string;
 }
 
+export interface StoryGroundingSnapshot {
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection: string;
+}
+
+export interface StoryGrounding {
+  kind: "manual" | "prep_bank";
+  sourceId?: string;
+  sourceLabel: string;
+  snapshot: StoryGroundingSnapshot;
+}
+
 export interface StoryDraft {
   id?: string;
   competency: CompetencyId;
@@ -116,6 +132,7 @@ export interface StoryDraft {
   action: string;
   result: string;
   reflection: string;
+  grounding: StoryGrounding | null;
 }
 
 export interface StarStory extends StoryDraft {
@@ -2037,6 +2054,7 @@ function maximizeStoryForBarRaiser(
   let nextDraft = sanitizeStoryDraft({
     competency: story.competency,
     categoryTags: story.categoryTags,
+    grounding: story.grounding,
     title: buildAmplifiedTitle(story, fallbackDraft),
     situation: buildAmplifiedSituation(story, fallbackDraft),
     task: buildAmplifiedTask(story, fallbackDraft),
@@ -2065,6 +2083,7 @@ function maximizeStoryForBarRaiser(
     nextDraft = sanitizeStoryDraft({
       competency: nextDraft.competency,
       categoryTags: nextDraft.categoryTags,
+      grounding: nextDraft.grounding,
       title:
         clarityNeedsLift < BAR_RAISER_DIMENSION_TARGETS.clarity
           ? buildAmplifiedTitle(nextDraft, fallbackDraft)
@@ -2294,6 +2313,105 @@ function scoreStoryReflection(story: StoryDraft): StoryReviewDimension {
   };
 }
 
+function buildStoryGroundingSnapshot(
+  input: Partial<StoryDraft> | Partial<StoryGroundingSnapshot>,
+): StoryGroundingSnapshot {
+  return {
+    title: typeof input.title === "string" ? input.title.trim() : "",
+    situation:
+      typeof input.situation === "string" ? input.situation.trim() : "",
+    task: typeof input.task === "string" ? input.task.trim() : "",
+    action: typeof input.action === "string" ? input.action.trim() : "",
+    result: typeof input.result === "string" ? input.result.trim() : "",
+    reflection:
+      typeof input.reflection === "string" ? input.reflection.trim() : "",
+  };
+}
+
+function isStoryGroundingKind(value: unknown): value is StoryGrounding["kind"] {
+  return value === "manual" || value === "prep_bank";
+}
+
+function sanitizeStoryGrounding(input: unknown): StoryGrounding | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const raw = input as {
+    kind?: unknown;
+    sourceId?: unknown;
+    sourceLabel?: unknown;
+    snapshot?: unknown;
+  };
+  const snapshotSource =
+    raw.snapshot && typeof raw.snapshot === "object" ? raw.snapshot : {};
+  const snapshot = buildStoryGroundingSnapshot(
+    snapshotSource as Partial<StoryGroundingSnapshot>,
+  );
+
+  if (
+    !snapshot.title &&
+    !snapshot.situation &&
+    !snapshot.task &&
+    !snapshot.action &&
+    !snapshot.result &&
+    !snapshot.reflection
+  ) {
+    return null;
+  }
+
+  return {
+    kind: isStoryGroundingKind(raw.kind) ? raw.kind : "manual",
+    sourceId:
+      typeof raw.sourceId === "string" && raw.sourceId.trim().length > 0
+        ? raw.sourceId
+        : undefined,
+    sourceLabel:
+      typeof raw.sourceLabel === "string" && raw.sourceLabel.trim().length > 0
+        ? raw.sourceLabel.trim()
+        : snapshot.title || "Grounded story",
+    snapshot,
+  };
+}
+
+function getStoryGroundingBaseline(story: StoryDraft): StoryDraft {
+  const snapshot = story.grounding?.snapshot;
+
+  if (!snapshot) {
+    return story;
+  }
+
+  return sanitizeStoryDraft({
+    competency: story.competency,
+    categoryTags: story.categoryTags,
+    title: snapshot.title,
+    situation: snapshot.situation,
+    task: snapshot.task,
+    action: snapshot.action,
+    result: snapshot.result,
+    reflection: snapshot.reflection,
+    grounding: story.grounding,
+  });
+}
+
+function refreshStoryGrounding(story: StoryDraft): StoryGrounding {
+  if (story.grounding?.kind === "prep_bank") {
+    return story.grounding;
+  }
+
+  const snapshot = buildStoryGroundingSnapshot(story);
+
+  return {
+    kind: "manual",
+    sourceId: story.grounding?.sourceId,
+    sourceLabel:
+      story.title.trim() ||
+      story.grounding?.sourceLabel ||
+      "Manual story",
+    snapshot,
+  };
+}
+
 function sanitizeStoryDraft(input: Partial<StoryDraft>): StoryDraft {
   return {
     id: typeof input.id === "string" ? input.id : undefined,
@@ -2311,6 +2429,7 @@ function sanitizeStoryDraft(input: Partial<StoryDraft>): StoryDraft {
     result: typeof input.result === "string" ? input.result.trim() : "",
     reflection:
       typeof input.reflection === "string" ? input.reflection.trim() : "",
+    grounding: sanitizeStoryGrounding(input.grounding),
   };
 }
 
@@ -2399,6 +2518,7 @@ export function createEmptyStoryDraft(
     action: "",
     result: "",
     reflection: "",
+    grounding: null,
   };
 }
 
@@ -2737,50 +2857,75 @@ export function buildEliteStoryPolish(
   story: Partial<StoryDraft>,
 ): EliteStoryPolish {
   const safe = sanitizeStoryDraft(story);
+  const groundedBaseline = getStoryGroundingBaseline(safe);
   const originalReview = reviewStarStory(safe);
   const draftSuggestion = buildEliteStoryDraft({
     competency: safe.competency,
     categoryTags: safe.categoryTags,
-    titleHint: safe.title,
-    context: safe.situation,
-    stakes: safe.task,
-    actions: safe.action,
-    result: safe.result,
-    lesson: safe.reflection,
+    titleHint: chooseStoryField(safe.title, groundedBaseline.title),
+    context: chooseStoryField(safe.situation, groundedBaseline.situation),
+    stakes: chooseStoryField(safe.task, groundedBaseline.task),
+    actions: chooseStoryField(safe.action, groundedBaseline.action),
+    result: chooseStoryField(safe.result, groundedBaseline.result),
+    lesson: chooseStoryField(safe.reflection, groundedBaseline.reflection),
+  });
+  const featureBaseline = sanitizeStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    title: chooseStoryField(groundedBaseline.title, draftSuggestion.draft.title),
+    situation: chooseStoryField(
+      groundedBaseline.situation,
+      draftSuggestion.draft.situation,
+    ),
+    task: chooseStoryField(groundedBaseline.task, draftSuggestion.draft.task),
+    action: chooseStoryField(
+      groundedBaseline.action,
+      draftSuggestion.draft.action,
+    ),
+    result: chooseStoryField(
+      groundedBaseline.result,
+      draftSuggestion.draft.result,
+    ),
+    reflection: chooseStoryField(
+      groundedBaseline.reflection,
+      draftSuggestion.draft.reflection,
+    ),
+    grounding: safe.grounding,
   });
 
   const polishedDraft = sanitizeStoryDraft({
     competency: safe.competency,
     categoryTags: safe.categoryTags,
+    grounding: safe.grounding,
     title:
       safe.title.trim() ||
-      (!hasPlaceholder(draftSuggestion.draft.title)
-        ? draftSuggestion.draft.title
+      (!hasPlaceholder(featureBaseline.title)
+        ? featureBaseline.title
         : ""),
     situation: safe.situation.trim()
       ? tightenStorySituation(safe.situation)
-      : !hasPlaceholder(draftSuggestion.draft.situation)
-        ? tightenStorySituation(draftSuggestion.draft.situation)
+      : !hasPlaceholder(featureBaseline.situation)
+        ? tightenStorySituation(featureBaseline.situation)
         : "",
     task: safe.task.trim()
       ? tightenStoryTask(safe.task)
-      : !hasPlaceholder(draftSuggestion.draft.task)
-        ? tightenStoryTask(draftSuggestion.draft.task)
+      : !hasPlaceholder(featureBaseline.task)
+        ? tightenStoryTask(featureBaseline.task)
         : "",
     action: safe.action.trim()
       ? tightenStoryAction(safe.action)
-      : !hasPlaceholder(draftSuggestion.draft.action)
-        ? tightenStoryAction(draftSuggestion.draft.action)
+      : !hasPlaceholder(featureBaseline.action)
+        ? tightenStoryAction(featureBaseline.action)
         : "",
     result: safe.result.trim()
       ? tightenStoryResult(safe.result)
-      : !hasPlaceholder(draftSuggestion.draft.result)
-        ? tightenStoryResult(draftSuggestion.draft.result)
+      : !hasPlaceholder(featureBaseline.result)
+        ? tightenStoryResult(featureBaseline.result)
         : "",
     reflection: safe.reflection.trim()
       ? tightenStoryReflection(safe.reflection)
-      : !hasPlaceholder(draftSuggestion.draft.reflection)
-        ? tightenStoryReflection(draftSuggestion.draft.reflection)
+      : !hasPlaceholder(featureBaseline.reflection)
+        ? tightenStoryReflection(featureBaseline.reflection)
         : "",
   });
 
@@ -2910,19 +3055,43 @@ export function buildBarRaiserAmplification(
   story: Partial<StoryDraft>,
 ): BarRaiserAmplification {
   const safe = sanitizeStoryDraft(story);
+  const groundedBaseline = getStoryGroundingBaseline(safe);
   const originalReview = reviewStarStory(safe);
   const draftSuggestion = buildEliteStoryDraft({
     competency: safe.competency,
     categoryTags: safe.categoryTags,
-    titleHint: safe.title,
-    context: safe.situation,
-    stakes: safe.task,
-    actions: safe.action,
-    result: safe.result,
-    lesson: safe.reflection,
+    titleHint: chooseStoryField(safe.title, groundedBaseline.title),
+    context: chooseStoryField(safe.situation, groundedBaseline.situation),
+    stakes: chooseStoryField(safe.task, groundedBaseline.task),
+    actions: chooseStoryField(safe.action, groundedBaseline.action),
+    result: chooseStoryField(safe.result, groundedBaseline.result),
+    lesson: chooseStoryField(safe.reflection, groundedBaseline.reflection),
+  });
+  const featureBaseline = sanitizeStoryDraft({
+    competency: safe.competency,
+    categoryTags: safe.categoryTags,
+    title: chooseStoryField(groundedBaseline.title, draftSuggestion.draft.title),
+    situation: chooseStoryField(
+      groundedBaseline.situation,
+      draftSuggestion.draft.situation,
+    ),
+    task: chooseStoryField(groundedBaseline.task, draftSuggestion.draft.task),
+    action: chooseStoryField(
+      groundedBaseline.action,
+      draftSuggestion.draft.action,
+    ),
+    result: chooseStoryField(
+      groundedBaseline.result,
+      draftSuggestion.draft.result,
+    ),
+    reflection: chooseStoryField(
+      groundedBaseline.reflection,
+      draftSuggestion.draft.reflection,
+    ),
+    grounding: safe.grounding,
   });
 
-  const amplifiedDraft = maximizeStoryForBarRaiser(safe, draftSuggestion.draft);
+  const amplifiedDraft = maximizeStoryForBarRaiser(safe, featureBaseline);
 
   const amplifiedReviewCandidate = reviewStarStory(amplifiedDraft);
   const keepOriginal = amplifiedReviewCandidate.score < originalReview.score;
@@ -4224,6 +4393,7 @@ export function saveStarStory(
 
   const nextStory: StarStory = {
     ...story,
+    grounding: refreshStoryGrounding(story),
     id,
     updatedAt: now.toISOString(),
   };
