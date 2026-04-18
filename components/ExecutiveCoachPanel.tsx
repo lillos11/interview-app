@@ -13,6 +13,7 @@ import {
   type InterviewPrepProgress,
   type InterviewQuestion,
   type InterviewQuestionCategory,
+  type InterviewerLensId,
   type StoryDraft,
 } from "@/lib/interview";
 
@@ -23,7 +24,10 @@ interface ExecutiveCoachPanelProps {
   selectedCompetency: CompetencyId | "all";
   storyDraft: StoryDraft;
   currentQuestion: InterviewQuestion | null;
-  onPracticeQuestion: (questionId: string) => void;
+  onPracticeQuestion: (
+    questionId: string,
+    lensId?: InterviewerLensId,
+  ) => void;
   onLoadPrepDeckStory: (storyId: string) => void;
   onLoadSavedStory: (storyId: string) => void;
 }
@@ -64,7 +68,7 @@ function modeLabel(mode: ExecutiveCoachReply["mode"]): string {
 
 function renderReply(
   reply: ExecutiveCoachReply,
-  onPracticeQuestion: (questionId: string) => void,
+  onPracticeQuestion: (questionId: string, lensId?: InterviewerLensId) => void,
   onLoadPrepDeckStory: (storyId: string) => void,
   onLoadSavedStory: (storyId: string) => void,
 ) {
@@ -191,7 +195,12 @@ function renderReply(
           ) : null}
           <button
             type="button"
-            onClick={() => onPracticeQuestion(reply.recommendedQuestion?.id ?? "")}
+            onClick={() =>
+              onPracticeQuestion(
+                reply.recommendedQuestion?.id ?? "",
+                reply.recommendedQuestion?.recommendedLensId,
+              )
+            }
             className="mt-4 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
           >
             Open in Bar Raiser

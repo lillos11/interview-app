@@ -24,6 +24,7 @@ import {
 interface BarRaiserStudioProps {
   questions: readonly InterviewQuestion[];
   initialQuestionId?: string | null;
+  initialLensId?: InterviewerLensId | null;
   onLogReview?: (
     question: InterviewQuestion,
     review: InterviewAnswerReview,
@@ -218,10 +219,11 @@ function getTimingFeedback(durationSeconds: number, targetSeconds: number) {
 export default function BarRaiserStudio({
   questions,
   initialQuestionId,
+  initialLensId,
   onLogReview,
 }: BarRaiserStudioProps) {
   const [selectedLensId, setSelectedLensId] =
-    useState<InterviewerLensId>("l7_bar_raiser");
+    useState<InterviewerLensId>(initialLensId ?? "l7_bar_raiser");
   const [selectedQuestionId, setSelectedQuestionId] = useState(() =>
     initialQuestionId &&
     questions.some((question) => question.id === initialQuestionId)

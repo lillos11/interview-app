@@ -201,15 +201,18 @@ function inferMode(message: string): ExecutiveCoachMode {
 
 function getRecommendedLensId(question: InterviewQuestion): InterviewerLensId {
   if (question.managerOnly) {
-    return "l7_bar_raiser";
+    return "hiring_manager";
   }
 
   switch (question.competency) {
     case "technical_depth":
+      return "tech_lead";
     case "problem_solving":
+      return "finance_partner";
     case "ownership":
       return "l6_ops";
     case "leadership":
+      return "hiring_manager";
     case "stakeholder_management":
       return "hrbp";
     default:

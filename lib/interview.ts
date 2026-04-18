@@ -58,7 +58,13 @@ export type CompetencyId = (typeof INTERVIEW_COMPETENCIES)[number]["id"];
 export type DrillRating = "needs_work" | "solid" | "strong";
 export type InterviewSourceFamily = "lp" | "functional";
 export type CompanyTrack = "amazon";
-export type InterviewerLensId = "hrbp" | "l6_ops" | "l7_bar_raiser";
+export type InterviewerLensId =
+  | "hrbp"
+  | "l6_ops"
+  | "l7_bar_raiser"
+  | "finance_partner"
+  | "tech_lead"
+  | "hiring_manager";
 export type PrepTabTarget =
   | "cockpit"
   | "star_lab"
@@ -433,15 +439,84 @@ export interface StoryRoleScaleAssessment {
   rewriteMove: string;
 }
 
+export interface StoryPlaceholderDefect {
+  field: BarRaiserAmplificationField;
+  label: string;
+  token: string;
+  severity: "critical" | "watch";
+  detail: string;
+  repairMove: string;
+}
+
 export interface StoryCalibrationReport {
   strictnessScore: number;
   sourceAnchor: string;
   ownershipBoxes: StoryBoundingBox[];
   ghostMetrics: StoryGhostMetric[];
+  placeholderDefects: StoryPlaceholderDefect[];
   zeroWasteSuggestions: StoryZeroWasteSuggestion[];
   redTeamFollowUps: string[];
   deliveryMetrics: StoryDeliveryMetric[];
   roleScale: StoryRoleScaleAssessment;
+}
+
+export interface ReadinessForecast {
+  levelTarget: string;
+  requiredAverageScore: number;
+  projectedPassProbability: number;
+  daysToPeakReadiness: number;
+  momentum: "rising" | "flat" | "slipping";
+  summary: string;
+  trajectoryNote: string;
+  blockers: string[];
+}
+
+export interface StorySaturationGap {
+  categoryId: string;
+  label: string;
+  count: number;
+  status: "over_indexed" | "starved";
+  detail: string;
+}
+
+export interface StorySaturationReport {
+  summary: string;
+  overIndexedCategories: StorySaturationGap[];
+  starvedCategories: StorySaturationGap[];
+  criticalSignalGaps: string[];
+}
+
+export interface StoryPivotNode {
+  id: string;
+  categoryId: string;
+  label: string;
+  targetCategoryLabel: string;
+  framingMove: string;
+  pivotedResult: string;
+  pivotedReflection: string;
+}
+
+export interface StoryPivotPack {
+  summary: string;
+  nodes: StoryPivotNode[];
+}
+
+export interface EnduranceLoopRound {
+  id: string;
+  lensId: InterviewerLensId;
+  lensLabel: string;
+  title: string;
+  questionIds: string[];
+  promptTitles: string[];
+  pressureNote: string;
+}
+
+export interface EnduranceLoopPlan {
+  summary: string;
+  totalRounds: number;
+  totalQuestions: number;
+  totalMinutes: number;
+  rounds: EnduranceLoopRound[];
 }
 
 export interface PrepMomentumDashboard {
@@ -589,6 +664,18 @@ export const INTERVIEW_RESCUE_SCRIPTS: readonly RescueScript[] = [
 
 export const INTERVIEWER_LENSES: readonly InterviewerLens[] = [
   {
+    id: "hiring_manager",
+    label: "Hiring Manager",
+    description:
+      "Pushes on role fit, scope readiness, team leadership, and whether your trajectory matches the next-level seat.",
+    demands: [
+      "Show why this story sounds like next-level scope, not just strong execution.",
+      "Make team leverage, judgment, and operating ownership visible.",
+      "Close with what this says about how you will perform in the target role.",
+    ],
+    targetDurationSeconds: 90,
+  },
+  {
     id: "hrbp",
     label: "HRBP",
     description:
@@ -611,6 +698,30 @@ export const INTERVIEWER_LENSES: readonly InterviewerLens[] = [
       "Close with the metric and the repeatable mechanism that remained after you.",
     ],
     targetDurationSeconds: 90,
+  },
+  {
+    id: "finance_partner",
+    label: "Finance Partner",
+    description:
+      "Tests whether you can frame a decision in ROI, resource tradeoffs, downside risk, and business leverage.",
+    demands: [
+      "Translate the move into cost, margin, labor, or avoided risk.",
+      "State what you chose not to fund, staff, or prioritize.",
+      "Show the business case, not only the operational result.",
+    ],
+    targetDurationSeconds: 90,
+  },
+  {
+    id: "tech_lead",
+    label: "Tech Lead",
+    description:
+      "Pushes on system constraints, failure modes, technical tradeoffs, and how the mechanism survives scale.",
+    demands: [
+      "Name the system, bottleneck, or failure mode directly.",
+      "Explain the tradeoff and why the chosen path scaled better.",
+      "Show what changed in the mechanism, not only the momentary fix.",
+    ],
+    targetDurationSeconds: 120,
   },
   {
     id: "l7_bar_raiser",
@@ -1134,6 +1245,16 @@ const WEAK_VERB_PATTERN =
   /\b(helped|supported|assisted|worked on|was part of|participated in|handled tasks|involved in)\b/gi;
 const SCALE_SIGNAL_PATTERN =
   /\b(associates?|people|team|teams|shift|shifts|sites?|network|cross-functional|org|organization|department|floor|process path|standard work|playbook|mechanism|cadence|system)\b/gi;
+const AMBIGUOUS_DATE_PATTERN =
+  /\b(recently|lately|a while back|some time ago|last year|earlier this year|months ago|weeks ago|back then|in the past|at one point)\b/gi;
+const PLACEHOLDER_METRIC_PATTERN =
+  /\[(?:[^\]]*metric[^\]]*|[^\]]*date[^\]]*|[^\]]*timeframe[^\]]*|[^\]]*delta[^\]]*|[^\]]*number[^\]]*|[xyzXYZ])\]|\b[xXyzYZ]%\b/gi;
+const SOFT_NUMBER_PATTERN =
+  /\b(a lot|several|many|few|some|tons|significant|major|huge|massive)\b/gi;
+const DATE_ANCHOR_PATTERN =
+  /\b(20\d{2}|q[1-4]\s*20\d{2}|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|prime day|peak|holiday|that day|that week|that month)\b/gi;
+const ROI_PATTERN =
+  /\b(roi|revenue|margin|cost|costs|costed|budget|overtime|labor|hours saved|savings|expense|headcount|throughput per hour|productivity)\b/gi;
 const ZERO_WASTE_TERMS = [
   "really",
   "very",
@@ -1301,6 +1422,61 @@ function formatMoney(value: number | null): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function inferLevelNumber(levelText: string): number {
+  const directMatch = levelText.match(/\bL\s*([3-8])\b/i);
+  if (directMatch) {
+    return Number(directMatch[1]);
+  }
+
+  const tierMatch = levelText.match(/\b(?:tier|level)\s*([3-8])\b/i);
+  if (tierMatch) {
+    return Number(tierMatch[1]);
+  }
+
+  return 4;
+}
+
+function getLevelCalibrationTargets(levelText: string) {
+  const levelNumber = inferLevelNumber(levelText);
+
+  if (levelNumber >= 6) {
+    return {
+      levelNumber,
+      requiredAverageScore: 86,
+      targetStoryCount: 10,
+      targetManagerReps: 6,
+      targetLpCoverage: 12,
+      targetFunctionalCoverage: 7,
+      storyScoreFloor: 82,
+      pressureLabel: "director-grade",
+    };
+  }
+
+  if (levelNumber >= 5) {
+    return {
+      levelNumber,
+      requiredAverageScore: 80,
+      targetStoryCount: 8,
+      targetManagerReps: 4,
+      targetLpCoverage: 10,
+      targetFunctionalCoverage: 5,
+      storyScoreFloor: 78,
+      pressureLabel: "manager-grade",
+    };
+  }
+
+  return {
+    levelNumber,
+    requiredAverageScore: 74,
+    targetStoryCount: 6,
+    targetManagerReps: 2,
+    targetLpCoverage: 8,
+    targetFunctionalCoverage: 4,
+    storyScoreFloor: 74,
+    pressureLabel: "entry-manager-grade",
+  };
 }
 
 function clampScore(value: number): number {
@@ -3606,6 +3782,103 @@ function buildZeroWasteSuggestion(
   };
 }
 
+function buildPlaceholderDefects(
+  story: StoryDraft,
+): StoryPlaceholderDefect[] {
+  const defects: StoryPlaceholderDefect[] = [];
+  const addDefect = (
+    field: BarRaiserAmplificationField,
+    token: string,
+    severity: StoryPlaceholderDefect["severity"],
+    detail: string,
+    repairMove: string,
+  ) => {
+    defects.push({
+      field,
+      label: getStoryFieldLabel(field),
+      token,
+      severity,
+      detail,
+      repairMove,
+    });
+  };
+
+  for (const [field, value] of [
+    ["situation", story.situation],
+    ["task", story.task],
+    ["action", story.action],
+    ["result", story.result],
+    ["reflection", story.reflection],
+  ] as const) {
+    const ambiguousDates = value.match(AMBIGUOUS_DATE_PATTERN) ?? [];
+    for (const token of ambiguousDates) {
+      addDefect(
+        field,
+        token,
+        "critical",
+        "This time anchor is too vague. A strong interviewer will ask for the exact period and will trust the story less until you give it.",
+        "Replace the fuzzy time phrase with an exact month, quarter, peak period, or named event.",
+      );
+    }
+
+    const placeholders = value.match(PLACEHOLDER_METRIC_PATTERN) ?? [];
+    for (const token of placeholders) {
+      addDefect(
+        field,
+        token,
+        "critical",
+        "This still reads like a scaffold instead of a real fact.",
+        "Replace the placeholder with the exact metric, date, delta, or scope marker before using this story live.",
+      );
+    }
+
+    if (
+      countMatches(value, SOFT_NUMBER_PATTERN) > 0 &&
+      !hasMetric(value) &&
+      (field === "action" || field === "result")
+    ) {
+      addDefect(
+        field,
+        "soft quantity",
+        "watch",
+        "The story relies on vague magnitude language without a verifiable number.",
+        "Swap words like significant or a lot for an exact count, percentage, time saved, or cost avoided.",
+      );
+    }
+  }
+
+  if (
+    !countMatches(`${story.situation} ${story.task}`, DATE_ANCHOR_PATTERN) &&
+    countWords(`${story.situation} ${story.task}`) >= 8
+  ) {
+    addDefect(
+      "situation",
+      "missing time anchor",
+      "watch",
+      "The opening has no anchored date, peak window, or named period, which makes chronology easier to challenge.",
+      "Add the quarter, month, peak event, or named operating window so the story starts on verifiable ground.",
+    );
+  }
+
+  if (
+    countWords(story.action) >= 12 &&
+    countMatches(story.action, STRUCTURE_PATTERN) === 0
+  ) {
+    addDefect(
+      "action",
+      "flat chronology",
+      "watch",
+      "The action section has detail, but the sequence is still too flat to audit cleanly.",
+      "Break the action into first, then, and after that so the interviewer can follow your decision path.",
+    );
+  }
+
+  return [...new Map(defects.map((defect) => [`${defect.field}-${defect.token}-${defect.detail}`, defect])).values()].slice(
+    0,
+    6,
+  );
+}
+
 function buildRoleScaleAssessment(
   story: StoryDraft,
   careerProfile: InterviewCareerProfile,
@@ -3659,6 +3932,7 @@ export function buildStoryCalibrationReport(
   const amplification = buildBarRaiserAmplification(safe);
   const review = reviewStarStory(safe);
   const profile = sanitizeCareerProfile(careerProfile);
+  const placeholderDefects = buildPlaceholderDefects(safe);
   const ownershipBoxes: StoryBoundingBox[] = (
     [
       ["situation", safe.situation],
@@ -3822,13 +4096,23 @@ export function buildStoryCalibrationReport(
   ];
 
   return {
-    strictnessScore: clampScore(Math.max(0, review.score - 6 + (ghostMetrics.length ? 0 : 4))),
+    strictnessScore: clampScore(
+      Math.max(
+        0,
+        review.score -
+          6 -
+          placeholderDefects.filter((defect) => defect.severity === "critical").length * 4 -
+          placeholderDefects.filter((defect) => defect.severity === "watch").length * 2 +
+          (ghostMetrics.length ? 0 : 4),
+      ),
+    ),
     sourceAnchor:
       safe.grounding?.sourceLabel ||
       safe.title ||
       "Current story draft",
     ownershipBoxes,
     ghostMetrics,
+    placeholderDefects,
     zeroWasteSuggestions,
     redTeamFollowUps,
     deliveryMetrics,
@@ -3921,6 +4205,398 @@ export function buildPrepMomentumDashboard(
     repetitionRisk: heaviestCategory
       ? `${heaviestCategory[0]} shows up ${heaviestCategory[1]} times in your recent harsh-review window.`
       : "No single category is dominating your recent harsh-review window yet.",
+  };
+}
+
+export function buildReadinessForecast(
+  progress: InterviewPrepProgress,
+): ReadinessForecast {
+  const calibration = getLevelCalibrationTargets(progress.careerProfile.targetLevel);
+  const coverage = getAmazonCoverageSummary(progress);
+  const recentScores = [...progress.barRaiserHistory]
+    .slice(0, 8)
+    .reverse()
+    .map((entry) => entry.score);
+  const averageScore = recentScores.length
+    ? Math.round(
+        recentScores.reduce((sum, score) => sum + score, 0) /
+          recentScores.length,
+      )
+    : 0;
+  const momentumDelta =
+    recentScores.length >= 2
+      ? recentScores[recentScores.length - 1] - recentScores[0]
+      : 0;
+  const momentum: ReadinessForecast["momentum"] =
+    momentumDelta >= 5 ? "rising" : momentumDelta <= -4 ? "slipping" : "flat";
+  const strongStories = progress.stories.filter(
+    (story) => reviewStarStory(story).score >= calibration.storyScoreFloor,
+  ).length;
+  const categoryCoverage = getStoryCategoryCoverage(progress);
+  const thinkBigCoverage = categoryCoverage["think-big"] ?? 0;
+  const diveDeepCoverage = categoryCoverage["dive-deep"] ?? 0;
+  const technicalSignalCount = progress.stories.filter(
+    (story) =>
+      story.competency === "technical_depth" ||
+      story.categoryTags.includes("dive-deep") ||
+      story.categoryTags.includes("interpretation-and-analysis"),
+  ).length;
+
+  const blockers: string[] = [];
+  if (averageScore < calibration.requiredAverageScore) {
+    blockers.push(
+      `Your recent harsh-review average is ${averageScore}, but ${progress.careerProfile.targetLevel} prep needs roughly ${calibration.requiredAverageScore} to feel safe.`,
+    );
+  }
+  if (strongStories < calibration.targetStoryCount) {
+    blockers.push(
+      `Only ${strongStories} stories currently clear the ${calibration.storyScoreFloor}+ bar, which is short of the ${calibration.targetStoryCount} story bank this level usually needs.`,
+    );
+  }
+  if (coverage.managerRepCount < calibration.targetManagerReps) {
+    blockers.push(
+      `Manager-only pressure is undertrained: ${coverage.managerRepCount}/${calibration.targetManagerReps} reps.`,
+    );
+  }
+  if (coverage.lpCovered < calibration.targetLpCoverage) {
+    blockers.push(
+      `Leadership Principle coverage is still thin at ${coverage.lpCovered}/${calibration.targetLpCoverage} for this target level.`,
+    );
+  }
+  if (coverage.functionalCovered < calibration.targetFunctionalCoverage) {
+    blockers.push(
+      `Functional coverage is still thin at ${coverage.functionalCovered}/${calibration.targetFunctionalCoverage}.`,
+    );
+  }
+  if (calibration.levelNumber >= 5 && thinkBigCoverage === 0) {
+    blockers.push(
+      "There is no saved Think Big proof yet, which will read as a missing scale signal at higher levels.",
+    );
+  }
+  if (calibration.levelNumber >= 6 && diveDeepCoverage === 0 && technicalSignalCount === 0) {
+    blockers.push(
+      "The story bank still lacks Dive Deep / technical-depth proof strong enough for L6 pressure.",
+    );
+  }
+
+  const scoreProgress = Math.min(
+    100,
+    Math.round((averageScore / calibration.requiredAverageScore) * 100),
+  );
+  const storyProgress = Math.min(
+    100,
+    Math.round((strongStories / calibration.targetStoryCount) * 100),
+  );
+  const managerProgress = Math.min(
+    100,
+    Math.round((coverage.managerRepCount / calibration.targetManagerReps) * 100),
+  );
+  const lpProgress = Math.min(
+    100,
+    Math.round((coverage.lpCovered / calibration.targetLpCoverage) * 100),
+  );
+  const functionalProgress = Math.min(
+    100,
+    Math.round(
+      (coverage.functionalCovered / calibration.targetFunctionalCoverage) * 100,
+    ),
+  );
+  const projectedPassProbability = clampScore(
+    scoreProgress * 0.36 +
+      storyProgress * 0.18 +
+      managerProgress * 0.14 +
+      lpProgress * 0.14 +
+      functionalProgress * 0.08 +
+      (momentum === "rising" ? 8 : momentum === "slipping" ? -8 : 0) -
+      blockers.length * 4,
+  );
+
+  const daysToPeakReadiness = Math.max(
+    0,
+    Math.round(
+      Math.max(0, calibration.requiredAverageScore - averageScore) * 1.4 +
+        Math.max(0, calibration.targetStoryCount - strongStories) * 2.5 +
+        Math.max(0, calibration.targetManagerReps - coverage.managerRepCount) *
+          2.2 +
+        Math.max(0, calibration.targetLpCoverage - coverage.lpCovered) * 1.4 +
+        Math.max(
+          0,
+          calibration.targetFunctionalCoverage - coverage.functionalCovered,
+        ) *
+          1.2 -
+        (momentum === "rising" ? 2 : 0),
+    ),
+  );
+
+  return {
+    levelTarget: `${progress.careerProfile.targetRole} ${progress.careerProfile.targetLevel}`.trim(),
+    requiredAverageScore: calibration.requiredAverageScore,
+    projectedPassProbability,
+    daysToPeakReadiness,
+    momentum,
+    summary:
+      projectedPassProbability >= 80
+        ? `This looks ${calibration.pressureLabel} competitive right now. Keep drilling the weak seams instead of changing the whole system.`
+        : projectedPassProbability >= 60
+          ? `You are trending toward ${calibration.pressureLabel} readiness, but the prep still has visible leak points.`
+          : `Right now the app would not call you safe for ${calibration.pressureLabel} pressure. The gaps are still material.`,
+    trajectoryNote:
+      momentum === "rising"
+        ? "Recent harsh-review scores are moving up, so the deliberate practice is paying off."
+        : momentum === "slipping"
+          ? "Recent harsh-review scores are sliding, which usually means either fatigue or too much uncorrected repetition."
+          : "The score trajectory is flat. To break through, fix the same weak answer instead of just logging more reps.",
+    blockers: blockers.slice(0, 5),
+  };
+}
+
+export function buildStorySaturationReport(
+  progress: InterviewPrepProgress,
+  family: InterviewSourceFamily = "lp",
+): StorySaturationReport {
+  const coverage = getStoryCategoryCoverage(progress);
+  const categories = getQuestionCategoriesByFamily(family);
+  const totalTagged = categories.reduce(
+    (sum, category) => sum + (coverage[category.id] ?? 0),
+    0,
+  );
+  const questionCountByCategory = INTERVIEW_QUESTIONS.reduce(
+    (result, question) => {
+      result[question.sourceCategoryId] =
+        (result[question.sourceCategoryId] ?? 0) + 1;
+      return result;
+    },
+    {} as Record<string, number>,
+  );
+  const overIndexThreshold = Math.max(
+    2,
+    Math.ceil(Math.max(1, totalTagged) * 0.28),
+  );
+
+  const overIndexedCategories = categories
+    .filter((category) => (coverage[category.id] ?? 0) >= overIndexThreshold)
+    .sort(
+      (left, right) =>
+        (coverage[right.id] ?? 0) - (coverage[left.id] ?? 0),
+    )
+    .slice(0, 3)
+    .map((category) => ({
+      categoryId: category.id,
+      label: category.label,
+      count: coverage[category.id] ?? 0,
+      status: "over_indexed" as const,
+      detail:
+        "You are leaning on this signal repeatedly. That helps until it starts making you sound narrow or scripted.",
+    }));
+
+  const starvedCategories = categories
+    .filter((category) => (coverage[category.id] ?? 0) === 0)
+    .sort(
+      (left, right) =>
+        (questionCountByCategory[right.id] ?? 0) -
+        (questionCountByCategory[left.id] ?? 0),
+    )
+    .slice(0, 4)
+    .map((category) => ({
+      categoryId: category.id,
+      label: category.label,
+      count: 0,
+      status: "starved" as const,
+      detail:
+        "There is no saved story coverage here yet, so this signal is still exposed under pressure.",
+    }));
+
+  const criticalGapIds =
+    family === "lp"
+      ? ["think-big", "frugality", "earn-trust", "dive-deep"]
+      : [
+          "vision-and-strategy",
+          "team-and-people-management",
+          "interpretation-and-analysis",
+          "judgment-and-decision-making",
+        ];
+  const criticalSignalGaps = criticalGapIds
+    .filter((categoryId) => (coverage[categoryId] ?? 0) === 0)
+    .map((categoryId) => {
+      const category = getQuestionCategoryById(categoryId);
+      return `${category.label} has no saved story coverage yet.`;
+    })
+    .slice(0, 4);
+
+  return {
+    summary:
+      overIndexedCategories.length || starvedCategories.length
+        ? `You are not balanced yet across ${INTERVIEW_SOURCE_FAMILY_LABELS[family]}. Use this to stop hiding in your best lane and close the exposed ones.`
+        : `Coverage across ${INTERVIEW_SOURCE_FAMILY_LABELS[family]} is balanced enough that you can keep tightening quality instead of chasing breadth.`,
+    overIndexedCategories,
+    starvedCategories,
+    criticalSignalGaps,
+  };
+}
+
+export function buildStoryPivotPack(
+  story: Partial<StoryDraft>,
+): StoryPivotPack {
+  const safe = sanitizeStoryDraft(story);
+  const preferredCategoryIds = [
+    ...safe.categoryTags,
+    safe.competency === "ownership" ? "ownership" : "",
+    safe.competency === "stakeholder_management" ? "earn-trust" : "",
+    safe.competency === "technical_depth" ? "dive-deep" : "",
+    "deliver-results",
+    "earn-trust",
+    "think-big",
+  ].filter((value): value is string => Boolean(value) && isQuestionCategoryId(value));
+  const categoryIds = [...new Set(preferredCategoryIds)].slice(0, 3);
+
+  const nodes = categoryIds.map((categoryId, index) => {
+    const category = getQuestionCategoryById(categoryId);
+    const framingMove =
+      categoryId === "deliver-results"
+        ? "Tell the ending as the business recovery: compress setup, show the operating tradeoff, and land the hard result early."
+        : categoryId === "earn-trust"
+          ? "Tell the ending through the credibility move: what resistance existed, how you won trust, and what changed after people bought in."
+          : categoryId === "think-big"
+            ? "Tell the ending as leverage and scale: how the mechanism outlived the moment and changed a broader system."
+            : `Retell the ending so ${category.label} is the loudest signal instead of an implied side-effect.`;
+    const pivotedResult =
+      safe.result.trim().length > 0
+        ? categoryId === "earn-trust"
+          ? `${safe.result} The result matters here because it also changed how others trusted my judgment and followed the plan.`
+          : categoryId === "think-big"
+            ? `${safe.result} The bigger signal is that the move changed more than the immediate issue; it created leverage beyond the first save.`
+            : `${safe.result} That is the line I would land first because it proves the story worked in the business, not only in the room.`
+        : "You still need a real result ending here before this pivot is safe.";
+    const pivotedReflection =
+      safe.reflection.trim().length > 0
+        ? categoryId === "deliver-results"
+          ? `${safe.reflection} In this pivot, emphasize the operating habit or cadence that kept the result repeatable.`
+          : categoryId === "earn-trust"
+            ? `${safe.reflection} In this pivot, emphasize what changed in how you align or coach people after the event.`
+            : `${safe.reflection} In this pivot, emphasize the mechanism or scope lesson so the interviewer hears next-level signal.`
+        : "Add a clearer lesson so this pivot has an ending that sounds learned from, not merely finished.";
+
+    return {
+      id: `pivot-${index + 1}-${categoryId}`,
+      categoryId,
+      label:
+        categoryId === "deliver-results"
+          ? "Business result pivot"
+          : categoryId === "earn-trust"
+            ? "Trust pivot"
+            : categoryId === "think-big"
+              ? "Scale pivot"
+              : `${category.label} pivot`,
+      targetCategoryLabel: category.label,
+      framingMove,
+      pivotedResult,
+      pivotedReflection,
+    };
+  });
+
+  return {
+    summary:
+      nodes.length > 0
+        ? "Use these pivot endings to retell the same grounded facts for different interview angles without crossing stories."
+        : "Add category tags or more story detail and the pivot pack will generate multiple safe endings from the same source story.",
+    nodes,
+  };
+}
+
+export function buildEnduranceLoopPlan(
+  questions: readonly InterviewQuestion[],
+  progress: InterviewPrepProgress,
+): EnduranceLoopPlan {
+  const rounds: Array<{
+    id: string;
+    lensId: InterviewerLensId;
+    title: string;
+    preferredCompetencies: CompetencyId[];
+  }> = [
+    {
+      id: "round-1",
+      lensId: "hiring_manager",
+      title: "Round 1: Hiring manager fit and scope",
+      preferredCompetencies: ["leadership", "ownership", "storytelling"],
+    },
+    {
+      id: "round-2",
+      lensId: "finance_partner",
+      title: "Round 2: ROI and tradeoff pressure",
+      preferredCompetencies: ["problem_solving", "ownership", "leadership"],
+    },
+    {
+      id: "round-3",
+      lensId: "tech_lead",
+      title: "Round 3: Systems and mechanism pressure",
+      preferredCompetencies: ["technical_depth", "problem_solving", "adaptability"],
+    },
+    {
+      id: "round-4",
+      lensId: "l7_bar_raiser",
+      title: "Round 4: Final hostile bar raiser",
+      preferredCompetencies: ["leadership", "ownership", "stakeholder_management"],
+    },
+  ];
+  const remaining = [...questions].sort((left, right) => {
+    const leftAttempts = progress.questionStats[left.id]?.attempted ?? 0;
+    const rightAttempts = progress.questionStats[right.id]?.attempted ?? 0;
+    if (leftAttempts !== rightAttempts) {
+      return leftAttempts - rightAttempts;
+    }
+    const managerDelta = Number(right.managerOnly) - Number(left.managerOnly);
+    if (managerDelta !== 0) {
+      return managerDelta;
+    }
+    return right.followUps.length - left.followUps.length;
+  });
+
+  const builtRounds: EnduranceLoopRound[] = rounds.map((round, roundIndex) => {
+    const preferred = remaining.filter((question) =>
+      round.preferredCompetencies.includes(question.competency),
+    );
+    const sourcePool = preferred.length ? preferred : remaining;
+    const selected = sourcePool.slice(0, 3);
+
+    for (const question of selected) {
+      const index = remaining.findIndex((candidate) => candidate.id === question.id);
+      if (index >= 0) {
+        remaining.splice(index, 1);
+      }
+    }
+
+    const lens = getInterviewerLensById(round.lensId);
+
+    return {
+      id: round.id,
+      lensId: round.lensId,
+      lensLabel: lens.label,
+      title: round.title,
+      questionIds: selected.map((question) => question.id),
+      promptTitles: selected.map(
+        (question) => `${question.sourceCategoryLabel}: ${question.title}`,
+      ),
+      pressureNote:
+        roundIndex === 3
+          ? "Do not reuse the same easy story. The last round should attack the seams the earlier rounds exposed."
+          : lens.demands[0] ?? "Keep the answer tight, specific, and owned.",
+    };
+  });
+
+  const totalQuestions = builtRounds.reduce(
+    (sum, round) => sum + round.questionIds.length,
+    0,
+  );
+
+  return {
+    summary:
+      totalQuestions > 0
+        ? "This is the stamina plan: four consecutive rounds, rising pressure, and no hiding in your comfort lane."
+        : "There are not enough prompts in the current filter to build the full endurance loop yet.",
+    totalRounds: builtRounds.length,
+    totalQuestions,
+    totalMinutes: builtRounds.length * 45,
+    rounds: builtRounds,
   };
 }
 
@@ -4214,6 +4890,18 @@ export function reviewInterviewAnswer(
     );
   }
 
+  if (countMatches(normalizedAnswer, AMBIGUOUS_DATE_PATTERN) > 0) {
+    misses.push(
+      "The answer uses fuzzy chronology like recently or months ago. Senior interviewers trust exact dates and named windows more than soft timing language.",
+    );
+  }
+
+  if (countMatches(normalizedAnswer, PLACEHOLDER_METRIC_PATTERN) > 0) {
+    misses.push(
+      "Placeholder metrics are still leaking into the answer. Replace every scaffold with a real number or scope marker.",
+    );
+  }
+
   if (interviewerLens.id === "hrbp") {
     if (countMatches(normalizedAnswer, PEOPLE_PATTERN) >= 1) {
       strengths.push(
@@ -4226,6 +4914,21 @@ export function reviewInterviewAnswer(
       );
       rewriteMoves.push(
         "Add one sentence on the human dynamic: trust, feedback, coaching, conflict, or morale.",
+      );
+    }
+  }
+
+  if (interviewerLens.id === "hiring_manager") {
+    if (
+      countMatches(normalizedAnswer, SCALE_SIGNAL_PATTERN) === 0 &&
+      countMatches(normalizedAnswer, PEOPLE_PATTERN) === 0
+    ) {
+      score = clampScore(score - 6);
+      misses.unshift(
+        "A hiring manager will ask whether this story proves next-level scope. Right now it still sounds too individual and too tactical.",
+      );
+      rewriteMoves.unshift(
+        "Add the team leverage, scope, or operating system you owned so the story sounds like role readiness, not just hustle.",
       );
     }
   }
@@ -4247,6 +4950,51 @@ export function reviewInterviewAnswer(
       score = clampScore(score - 3);
       misses.push(
         "Execution pressure is still vague. A strong operations answer should make the window, deadline, or pace pressure visible.",
+      );
+    }
+  }
+
+  if (interviewerLens.id === "finance_partner") {
+    if (metricsCount === 0) {
+      score = clampScore(score - 6);
+      misses.unshift(
+        "A finance partner will want the business math. There is still no hard number strong enough to audit.",
+      );
+    }
+    if (countMatches(normalizedAnswer, ROI_PATTERN) === 0) {
+      score = clampScore(score - 5);
+      misses.unshift(
+        "The answer still does not translate into cost, labor, avoided risk, or ROI. A finance interviewer will push on the business case immediately.",
+      );
+      rewriteMoves.unshift(
+        "Add one sentence that translates the move into cost avoided, margin protected, labor saved, or downside risk reduced.",
+      );
+    }
+    if (countMatches(normalizedAnswer, TRADEOFF_PATTERN) === 0) {
+      score = clampScore(score - 4);
+      misses.unshift(
+        "Finance pressure is mostly tradeoff pressure. State what you chose not to fund, staff, or prioritize.",
+      );
+    }
+  }
+
+  if (interviewerLens.id === "tech_lead") {
+    if (countMatches(normalizedAnswer, TECHNICAL_PATTERN) === 0) {
+      score = clampScore(score - 6);
+      misses.unshift(
+        "A tech lead will expect the real system constraint or failure mode, and that still is not explicit enough here.",
+      );
+    }
+    if (countMatches(normalizedAnswer, TRADEOFF_PATTERN) === 0) {
+      score = clampScore(score - 4);
+      misses.unshift(
+        "Technical answers need the tradeoff, not only the outcome. Explain why the chosen path scaled better than the alternative.",
+      );
+    }
+    if (!countMatches(normalizedAnswer, STANDARD_WORK_PATTERN)) {
+      score = clampScore(score - 3);
+      misses.unshift(
+        "The answer still lacks the mechanism or system change that survived after the immediate fix.",
       );
     }
   }

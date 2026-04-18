@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBarRaiserAmplification,
+  buildEnduranceLoopPlan,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildGameFilmBreakdown,
   buildPrepMomentumDashboard,
+  buildReadinessForecast,
   buildStoryCalibrationReport,
+  buildStoryPivotPack,
   buildStoryScorecardSuggestions,
+  buildStorySaturationReport,
   buildCurveballPack,
   buildStoryPressureTest,
   coerceInterviewProgress,
@@ -615,6 +619,7 @@ describe("interview prep helpers", () => {
     expect(
       report.ownershipBoxes.some((box) => box.classification === "fluff"),
     ).toBe(true);
+    expect(report.placeholderDefects.length).toBeGreaterThan(0);
     expect(report.roleScale.summary.length).toBeGreaterThan(20);
     expect(report.roleScale.rewriteMove.length).toBeGreaterThan(20);
     expect(report.redTeamFollowUps).toHaveLength(3);
@@ -663,6 +668,139 @@ describe("interview prep helpers", () => {
     expect(dashboard.burnoutRisk).toBe("high");
     expect(dashboard.burnoutSignals.length).toBeGreaterThan(1);
     expect(dashboard.repetitionRisk.toLowerCase()).toContain("deliver-results");
+  });
+
+  it("builds an l-level readiness forecast with pass probability and deliberate-practice days", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "deliver-results",
+    )!;
+    const now = new Date("2026-03-10T12:00:00.000Z");
+    let progress = updateCareerProfile(
+      createInitialInterviewProgress(now),
+      {
+        targetRole: "Area Manager",
+        targetLevel: "L5",
+      },
+      now,
+    );
+
+    progress = saveStarStory(
+      progress,
+      {
+        competency: "leadership",
+        categoryTags: ["deliver-results", "ownership", "earn-trust"],
+        title: "Recovered peak flow",
+        situation: "Peak volume compressed the customer promise window.",
+        task: "I had to recover flow without creating a safety issue.",
+        action:
+          "I reset labor, escalated the equipment issue, and put a repeatable recovery cadence in place.",
+        result:
+          "We recovered 3000 units, held the backlog below shutdown threshold, and reduced downstream misses.",
+        reflection:
+          "Since then I use the same watch-point cadence whenever a path is trending off plan.",
+      },
+      now,
+      () => "forecast-story",
+    );
+
+    const review = reviewInterviewAnswer(
+      question,
+      [
+        "Peak volume compressed the customer promise window.",
+        "I reset labor, escalated the equipment issue, and put a repeatable recovery cadence in place.",
+        "We recovered 3000 units and held the backlog below the shutdown threshold.",
+      ].join(" "),
+      "l6_ops",
+    );
+    progress = recordBarRaiserReview(progress, question, review, 95, now);
+
+    const forecast = buildReadinessForecast(progress);
+
+    expect(forecast.levelTarget).toContain("L5");
+    expect(forecast.requiredAverageScore).toBe(80);
+    expect(forecast.projectedPassProbability).toBeGreaterThanOrEqual(0);
+    expect(forecast.daysToPeakReadiness).toBeGreaterThanOrEqual(0);
+    expect(forecast.blockers.length).toBeGreaterThan(0);
+  });
+
+  it("reports story saturation and critical signal gaps for the current family", () => {
+    const now = new Date("2026-03-10T12:00:00.000Z");
+    let progress = createInitialInterviewProgress(now);
+
+    progress = saveStarStory(
+      progress,
+      {
+        competency: "ownership",
+        categoryTags: ["ownership", "ownership", "deliver-results"],
+        title: "Owned a broken path",
+        situation: "A path was slipping hard.",
+        task: "I had to recover it quickly.",
+        action: "I reset staffing and cadence.",
+        result: "Performance recovered by 20 percent.",
+        reflection: "I now escalate earlier.",
+      },
+      now,
+      () => "sat-story-1",
+    );
+
+    progress = saveStarStory(
+      progress,
+      {
+        competency: "ownership",
+        categoryTags: ["ownership"],
+        title: "Another ownership story",
+        situation: "A miss was emerging.",
+        task: "I had to step in.",
+        action: "I made the call and fixed the rhythm.",
+        result: "The miss was contained.",
+        reflection: "I now inspect sooner.",
+      },
+      now,
+      () => "sat-story-2",
+    );
+
+    const report = buildStorySaturationReport(progress, "lp");
+
+    expect(report.overIndexedCategories.length).toBeGreaterThan(0);
+    expect(report.starvedCategories.length).toBeGreaterThan(0);
+    expect(report.summary.length).toBeGreaterThan(20);
+  });
+
+  it("builds pivot nodes that keep the story grounded while changing the ending emphasis", () => {
+    const pivotPack = buildStoryPivotPack({
+      competency: "leadership",
+      categoryTags: ["deliver-results", "earn-trust", "think-big"],
+      title: "Peak recovery",
+      situation: "Peak volume compressed the promise window.",
+      task: "I had to recover the flow quickly.",
+      action: "I reset labor and the inspection cadence.",
+      result: "We recovered the backlog and protected customer promise.",
+      reflection: "I now build the same cadence into future launches.",
+    });
+
+    expect(pivotPack.nodes.length).toBeGreaterThan(0);
+    expect(
+      pivotPack.nodes.every((node) => node.pivotedResult.length > 0),
+    ).toBe(true);
+    expect(
+      pivotPack.nodes.every((node) => node.pivotedReflection.length > 0),
+    ).toBe(true);
+  });
+
+  it("builds a four-round endurance loop with interviewer personas", () => {
+    const plan = buildEnduranceLoopPlan(
+      INTERVIEW_QUESTIONS.filter((question) => question.sourceFamily === "lp"),
+      createInitialInterviewProgress(new Date("2026-03-10T12:00:00.000Z")),
+    );
+
+    expect(plan.totalRounds).toBe(4);
+    expect(plan.totalMinutes).toBe(180);
+    expect(plan.rounds.some((round) => round.lensId === "finance_partner")).toBe(
+      true,
+    );
+    expect(plan.rounds.some((round) => round.lensId === "tech_lead")).toBe(
+      true,
+    );
   });
 
   it("builds a game-film breakdown with timestamped delivery defects", () => {
@@ -727,6 +865,46 @@ describe("interview prep helpers", () => {
     expect(barRaiserReview.score).toBeLessThanOrEqual(opsReview.score);
     expect(barRaiserReview.interviewerLabel).toBe("L7 Bar Raiser");
     expect(barRaiserReview.interviewerExpectations.length).toBeGreaterThan(0);
+  });
+
+  it("routes finance and tech personas with the right extra pressure", () => {
+    const financeQuestion =
+      INTERVIEW_QUESTIONS.find(
+        (entry) => entry.sourceCategoryId === "deliver-results",
+      ) ?? INTERVIEW_QUESTIONS[0];
+    const techQuestion =
+      INTERVIEW_QUESTIONS.find(
+        (entry) => entry.sourceCategoryId === "dive-deep",
+      ) ?? INTERVIEW_QUESTIONS[0];
+
+    const financeReview = reviewInterviewAnswer(
+      financeQuestion,
+      "I solved the issue and the team felt better afterward.",
+      "finance_partner",
+    );
+    const techReview = reviewInterviewAnswer(
+      techQuestion,
+      "I solved the issue and the team felt better afterward.",
+      "tech_lead",
+    );
+
+    expect(financeReview.interviewerLabel).toBe("Finance Partner");
+    expect(
+      financeReview.misses.some(
+        (miss) =>
+          miss.toLowerCase().includes("roi") ||
+          miss.toLowerCase().includes("business case") ||
+          miss.toLowerCase().includes("cost"),
+      ),
+    ).toBe(true);
+    expect(techReview.interviewerLabel).toBe("Tech Lead");
+    expect(
+      techReview.misses.some(
+        (miss) =>
+          miss.toLowerCase().includes("system") ||
+          miss.toLowerCase().includes("technical"),
+      ),
+    ).toBe(true);
   });
 
   it("flags weak answers that lack proof and ownership", () => {

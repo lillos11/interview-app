@@ -20,12 +20,16 @@ import {
 } from "@/lib/amazonPrepDeck";
 import {
   buildBarRaiserAmplification,
+  buildEnduranceLoopPlan,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildPrepMomentumDashboard,
+  buildReadinessForecast,
   buildStoryScorecardSuggestions,
   buildStoryCalibrationReport,
+  buildStoryPivotPack,
   buildStoryPressureTest,
+  buildStorySaturationReport,
   buildPitchPreview,
   buildStarCoachTips,
   coerceInterviewProgress,
@@ -69,8 +73,10 @@ import {
   type InterviewCareerProfile,
   type InterviewPrepProgress,
   type InterviewQuestion,
+  type InterviewerLensId,
   type InterviewSourceFamily,
   type PrepTabTarget,
+  type StoryPivotNode,
   type StoryDraft,
 } from "@/lib/interview";
 import BarRaiserStudio from "@/components/BarRaiserStudio";
@@ -510,6 +516,8 @@ export default function HomePage() {
   >(null);
   const [storyLoadNotice, setStoryLoadNotice] = useState<string | null>(null);
   const [storyBuilderRevealTick, setStoryBuilderRevealTick] = useState(0);
+  const [barRaiserLensId, setBarRaiserLensId] =
+    useState<InterviewerLensId | null>(null);
   const [barRaiserQuestionId, setBarRaiserQuestionId] = useState<string | null>(
     null,
   );
@@ -730,6 +738,18 @@ export default function HomePage() {
     () => buildPrepMomentumDashboard(progress),
     [progress],
   );
+  const readinessForecast = useMemo(
+    () => buildReadinessForecast(progress),
+    [progress],
+  );
+  const storySaturationReport = useMemo(
+    () => buildStorySaturationReport(progress, selectedFamily),
+    [progress, selectedFamily],
+  );
+  const storyPivotPack = useMemo(
+    () => buildStoryPivotPack(storyDraft),
+    [storyDraft],
+  );
 
   const drillHasStarted = drillQuestions.length > 0;
   const currentDrillQuestion =
@@ -874,6 +894,10 @@ export default function HomePage() {
         ? getRelatedQuestionPrompts(currentQuestionBankEntry, 3)
         : [],
     [currentQuestionBankEntry],
+  );
+  const enduranceLoopPlan = useMemo(
+    () => buildEnduranceLoopPlan(filteredQuestions, progress),
+    [filteredQuestions, progress],
   );
 
   const nextMoves = useMemo(() => {
@@ -1022,7 +1046,10 @@ export default function HomePage() {
     setDrillFinished(false);
   };
 
-  const openQuestionInBarRaiser = (questionId: string) => {
+  const openQuestionInBarRaiser = (
+    questionId: string,
+    lensId: InterviewerLensId | null = null,
+  ) => {
     const question = getInterviewQuestionById(questionId);
 
     if (!question) {
@@ -1032,6 +1059,7 @@ export default function HomePage() {
     setSelectedFamily(question.sourceFamily);
     setSelectedCategoryId(question.sourceCategoryId);
     setSelectedCompetency(question.competency);
+    setBarRaiserLensId(lensId);
     setBarRaiserQuestionId(question.id);
     resetPracticeState();
     setActiveTab("bar_raiser");
@@ -1205,6 +1233,22 @@ export default function HomePage() {
     setStoryDraft(nextDraft);
     setStoryLoadNotice(
       `Applied the full calibration pass to ${nextDraft.title || "your story"}.`,
+    );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyStoryPivotNode = (node: StoryPivotNode) => {
+    setStoryDraft((previous) => ({
+      ...previous,
+      categoryTags: previous.categoryTags.includes(node.categoryId)
+        ? previous.categoryTags
+        : [...previous.categoryTags, node.categoryId],
+      result: node.pivotedResult,
+      reflection: node.pivotedReflection,
+    }));
+    setStoryLoadNotice(
+      `Applied the ${node.label.toLowerCase()} to this story without crossing the source facts.`,
     );
     setActiveTab("star_lab");
     setStoryBuilderRevealTick((previous) => previous + 1);
@@ -1960,6 +2004,145 @@ export default function HomePage() {
                       {signal}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-[24px] border border-slate-200 bg-white/82 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        L-level calibration
+                      </p>
+                      <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                        Predictive readiness for {readinessForecast.levelTarget}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                        {readinessForecast.summary}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                      {readinessForecast.projectedPassProbability}% projected pass
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-[22px] bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                        Required average
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-950">
+                        {readinessForecast.requiredAverageScore}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                        Momentum
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold capitalize text-slate-950">
+                        {readinessForecast.momentum}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                        Deliberate-practice days
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-950">
+                        {readinessForecast.daysToPeakReadiness}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[22px] bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                    {readinessForecast.trajectoryNote}
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {readinessForecast.blockers.map((blocker) => (
+                      <div
+                        key={blocker}
+                        className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-sm leading-6 text-rose-950"
+                      >
+                        {blocker}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] bg-slate-950 p-5 text-white">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Story saturation metrics
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold">
+                    Stop over-indexing on one safe signal while another lane stays exposed.
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-white/80">
+                    {storySaturationReport.summary}
+                  </p>
+
+                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+                        Over-indexed
+                      </p>
+                      {storySaturationReport.overIndexedCategories.length ? (
+                        storySaturationReport.overIndexedCategories.map((gap) => (
+                          <div
+                            key={gap.categoryId}
+                            className="rounded-2xl border border-white/10 bg-white/5 p-3"
+                          >
+                            <p className="text-sm font-semibold text-white">
+                              {gap.label} ({gap.count})
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-white/72">
+                              {gap.detail}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/72">
+                          No single category is dominating the story bank right now.
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+                        Critical signal gaps
+                      </p>
+                      {storySaturationReport.starvedCategories.length ? (
+                        storySaturationReport.starvedCategories.map((gap) => (
+                          <div
+                            key={gap.categoryId}
+                            className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                          >
+                            <p className="text-sm font-semibold text-white">
+                              {gap.label}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-white/72">
+                              {gap.detail}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-black/10 p-3 text-sm leading-6 text-white/72">
+                          No obvious starved categories in the current family filter.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {storySaturationReport.criticalSignalGaps.length ? (
+                    <div className="mt-4 space-y-3">
+                      {storySaturationReport.criticalSignalGaps.map((gap) => (
+                        <div
+                          key={gap}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/82"
+                        >
+                          {gap}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </article>
@@ -3156,6 +3339,51 @@ export default function HomePage() {
                         )}
                       </div>
                     </div>
+
+                    <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Anti-placeholder mechanism
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {storyCalibrationReport.placeholderDefects.length ? (
+                          storyCalibrationReport.placeholderDefects.map((defect) => (
+                            <div
+                              key={`${defect.field}-${defect.token}-${defect.detail}`}
+                              className="rounded-2xl bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                                  {defect.label}
+                                </span>
+                                <span
+                                  className={classNames(
+                                    "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                    defect.severity === "critical"
+                                      ? "bg-rose-100 text-rose-900"
+                                      : "bg-amber-100 text-amber-900",
+                                  )}
+                                >
+                                  {defect.severity}
+                                </span>
+                              </div>
+                              <p className="mt-3 text-sm font-semibold text-slate-950">
+                                Trigger: {defect.token}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-700">
+                                {defect.detail}
+                              </p>
+                              <p className="mt-2 text-xs leading-5 text-slate-500">
+                                Fix: {defect.repairMove}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl bg-white p-3 text-sm leading-6 text-slate-600">
+                            No obvious placeholder, chronology, or fake-metric defects were detected in this draft.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3325,6 +3553,75 @@ export default function HomePage() {
 
             <div className="mt-5">
               <StoryRehearsalStudio story={storyDraft} />
+            </div>
+
+            <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/82 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Modular story pivoting
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                    Re-aim the same grounded story without crossing into another one.
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {storyPivotPack.summary}
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {storyPivotPack.nodes.length} pivot nodes
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                {storyPivotPack.nodes.length ? (
+                  storyPivotPack.nodes.map((node) => (
+                    <div
+                      key={node.id}
+                      className="rounded-[22px] border border-slate-200 bg-slate-50/85 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+                          {node.label}
+                        </span>
+                        <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-900">
+                          {node.targetCategoryLabel}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-700">
+                        {node.framingMove}
+                      </p>
+                      <div className="mt-4 rounded-2xl bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Pivoted result
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-800">
+                          {node.pivotedResult}
+                        </p>
+                      </div>
+                      <div className="mt-3 rounded-2xl bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Pivoted reflection
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-800">
+                          {node.pivotedReflection}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applyStoryPivotNode(node)}
+                        className="mt-4 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                      >
+                        Apply this pivot ending
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600 xl:col-span-3">
+                    Build out the story and tag it to one or more Amazon categories. The app will then generate safe pivot endings that stay grounded to the same source facts.
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
@@ -4025,6 +4322,78 @@ export default function HomePage() {
             </div>
           </article>
 
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Endurance loop simulator
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  Four rising-pressure rounds that test stamina, not just story quality.
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {enduranceLoopPlan.summary}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white/82 px-4 py-3 text-sm text-slate-700">
+                <div>{enduranceLoopPlan.totalRounds} rounds</div>
+                <div className="mt-1">{enduranceLoopPlan.totalQuestions} prompts</div>
+                <div className="mt-1">{enduranceLoopPlan.totalMinutes} minutes</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              {enduranceLoopPlan.rounds.map((round) => (
+                <div
+                  key={round.id}
+                  className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                      {round.lensLabel}
+                    </span>
+                    <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-900">
+                      {round.questionIds.length} prompts
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-lg font-semibold text-slate-950">
+                    {round.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {round.pressureNote}
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {round.promptTitles.length ? (
+                      round.promptTitles.map((promptTitle) => (
+                        <div
+                          key={promptTitle}
+                          className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-700"
+                        >
+                          {promptTitle}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+                        Not enough prompts are available in the current filter for this round yet.
+                      </div>
+                    )}
+                  </div>
+                  {round.questionIds[0] ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openQuestionInBarRaiser(round.questionIds[0], round.lensId)
+                      }
+                      className="mt-4 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Open round in Bar Raiser
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </article>
+
           {drillHasStarted && currentDrillQuestion ? (
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -4221,9 +4590,10 @@ export default function HomePage() {
 
       {activeTab === "bar_raiser" ? (
         <BarRaiserStudio
-          key={`bar-raiser-${barRaiserQuestionId ?? "default"}-${selectedFamily}-${effectiveSelectedCategoryId}-${selectedCompetency}`}
+          key={`bar-raiser-${barRaiserQuestionId ?? "default"}-${barRaiserLensId ?? "default"}-${selectedFamily}-${effectiveSelectedCategoryId}-${selectedCompetency}`}
           questions={filteredQuestions}
           initialQuestionId={barRaiserQuestionId}
+          initialLensId={barRaiserLensId}
           onLogReview={logBarRaiserReview}
         />
       ) : null}
