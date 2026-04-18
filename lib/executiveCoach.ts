@@ -274,7 +274,7 @@ function buildPrepDeckStoryReference(
     source: "prep_deck",
     id: story.id,
     title: story.title,
-    detail: story.challenge,
+    detail: story.whatChanged || story.reflection || story.result,
     metrics: story.keyNumbers.slice(0, 3),
   };
 }

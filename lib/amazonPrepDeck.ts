@@ -1,4 +1,13 @@
-import type { CompetencyId, InterviewSourceFamily, PitchPack, StoryDraft } from "./interview";
+import {
+  buildEliteStoryPolish,
+  reviewStarStory,
+} from "./interview";
+import type {
+  CompetencyId,
+  InterviewSourceFamily,
+  PitchPack,
+  StoryDraft,
+} from "./interview";
 
 export interface PrepDeckStoryTemplate {
   id: string;
@@ -8,14 +17,15 @@ export interface PrepDeckStoryTemplate {
   signalLane: CompetencyId;
   categoryIds: string[];
   keyNumbers: string[];
-  bestFor: string[];
-  challenge: string;
-  lesson: string;
-  standardWork: string[];
+  primaryPrinciples: string[];
+  secondaryPrinciples: string[];
   situation: string;
   task: string;
   action: string;
   result: string;
+  reflection: string;
+  whatChanged?: string;
+  followUpQuestions: string[];
 }
 
 export interface PrepDeckRouterEntry {
@@ -29,6 +39,17 @@ export interface PrepDeckPanelPlanEntry {
   categoryId: string;
   primaryStoryId: string;
   backupStoryId: string;
+}
+
+export interface PrepDeckElitePreview {
+  sourceDraft: StoryDraft;
+  sourceScore: number;
+  polishedDraft: StoryDraft;
+  polishedScore: number;
+  scoreDelta: number;
+  headline: string;
+  adjustments: string[];
+  remainingGaps: string[];
 }
 
 export const AMAZON_PREP_DECK_PITCH_TEMPLATE: {
@@ -53,6 +74,57 @@ export const AMAZON_PREP_DECK_STORIES: readonly PrepDeckStoryTemplate[] = [
   {
     id: "story-1",
     storyNumber: 1,
+    shortLabel: "Solo Operator",
+    title: "The Solo Operator",
+    signalLane: "leadership",
+    categoryIds: [
+      "ownership",
+      "deliver-results",
+      "bias-for-action",
+      "dive-deep",
+      "hire-and-develop-the-best",
+      "have-backbone-disagree-and-commit",
+      "think-big",
+      "team-and-people-management",
+      "plan-and-prioritize",
+      "vision-and-strategy",
+    ],
+    keyNumbers: [
+      "97.2 UPH vs 95 target",
+      "Defects down 14%",
+      "Zero CPT misses over 3 months",
+      "2 associates promoted to Tier 3",
+    ],
+    primaryPrinciples: ["Ownership", "Deliver Results"],
+    secondaryPrinciples: [
+      "Bias for Action",
+      "Dive Deep",
+      "Hire and Develop the Best",
+      "Have Backbone",
+    ],
+    situation:
+      "In Q3 2024, I was the only Process Assistant left running Pack Singles on night shift at MKC6 after our Area Manager transferred and the only other PA resigned within two weeks.",
+    task:
+      "I had to hold a 40-person department to a 95 UPH target, keep defects under control, hit zero CPT misses, and onboard new associates with no direct management support.",
+    action:
+      "I rebuilt the shift rhythm: a staffing plan by skill level, a 10-minute start-of-shift standup, peer coaches for the strongest associates, and tighter data pulls by process path. When small singles fell to 72 UPH, I built a visual job aid and paired new hires with top performers. I also escalated the leadership gap with a risk summary for peak and traced a recurring mislabel issue to scanner calibration, getting it fixed that night and adding a start-of-shift scanner check to standard work.",
+    result:
+      "Over the three months I ran Singles solo, the department averaged 97.2 UPH against a 95 target, defects dropped 14%, we had zero CPT misses, and two associates I developed earned Tier 3 promotions.",
+    reflection:
+      "This experience changed how I think about leadership. I stopped operating inside someone else's system and started building the system myself.",
+    whatChanged:
+      "Before this, I measured my value by how well I followed direction. After running a 40-person department solo for three months, I measure it by what I leave behind.",
+    followUpQuestions: [
+      "How did you know small singles was the bottleneck? - Walk through the 72 UPH versus 95 target discovery.",
+      "What was in the risk summary you sent to the Ops Manager? - Explain the peak planning shortfall risk you quantified.",
+      "How did you keep morale up with no AM? - Cover the standups, clarity of direction, and peer-coaching model.",
+      "What happened with the two associates you promoted? - Be ready with the path they moved into and what coaching got them there.",
+      "How did you verify the 14% defect reduction? - Tie it back to your audit data and prior-quarter comparison.",
+    ],
+  },
+  {
+    id: "story-2",
+    storyNumber: 2,
     shortLabel: "Department Turnaround",
     title: "The Department Turnaround",
     signalLane: "leadership",
@@ -60,331 +132,272 @@ export const AMAZON_PREP_DECK_STORIES: readonly PrepDeckStoryTemplate[] = [
       "deliver-results",
       "insist-on-the-highest-standards",
       "customer-obsession",
-      "ownership",
-      "think-big",
-      "frugality",
       "invent-and-simplify",
       "conscientiousness",
-      "influencing",
-      "interpretation-and-analysis",
-      "vision-and-strategy",
-    ],
-    keyNumbers: [
-      "Pack rate 80% to 110% of plan",
-      "DPMO down 35%",
-      "Productivity up 21% in 3 months",
-      "Sustained 104% to 113% of plan",
-    ],
-    bestFor: [
-      "Deliver Results",
-      "Highest Standards",
-      "Customer Obsession",
-    ],
-    challenge:
-      "Complacency was the real blocker because people genuinely believed 80% was good enough.",
-    lesson:
-      "Complacency is the most expensive problem in any operation because nobody thinks it's a problem.",
-    standardWork: [
-      "Locked SOPs and standardized workstations across all shifts.",
-      "Built a train-the-trainer model so the system scaled without extra cost.",
-      "Used daily audits and first-hour visibility dashboards to reinforce standards.",
-    ],
-    situation:
-      "The Singles department at MKC6 was stuck at the 80% network average because standards varied across shifts and turnover was high.",
-    task:
-      "Reset baseline standards across the whole department and make output stable across shifts.",
-    action:
-      "I standardized workstation layouts to remove shift-to-shift variance, built real-time dashboards for first-hour visibility by associate and process step, and implemented a train-the-trainer model to coach more than 60 associates without adding cost.",
-    result:
-      "Productivity jumped 21% in three months, performance stayed well above network average, and DPMO dropped 35%.",
-  },
-  {
-    id: "story-2",
-    storyNumber: 2,
-    shortLabel: "Prime Day CPT Recovery",
-    title: "The Prime Day CPT Recovery",
-    signalLane: "ownership",
-    categoryIds: [
-      "deliver-results",
-      "bias-for-action",
-      "customer-obsession",
-      "are-right-a-lot",
-      "adaptability",
       "customer-orientation",
-      "judgment-and-decision-making",
       "plan-and-prioritize",
     ],
     keyNumbers: [
-      "5,478 out of 5,500 CPTs recovered",
-      "99.6% recovery",
-      "2-hour window",
+      "80% to 110% of plan",
+      "21% productivity gain",
+      "DPMO down 35%",
+      "Station health up to 85% to 90%",
     ],
-    bestFor: ["Deliver Results", "Bias for Action", "Customer Obsession"],
-    challenge:
-      "Volume landed in one front-loaded wave, so a late staffing move would have missed truck times and customer promise.",
-    lesson:
-      "Reacting isn't enough. Build systems that catch problems before they start.",
-    standardWork: [
-      "Run a CPT buffer check in the first 30 minutes of every shift.",
-      "Compare CPT distribution versus pace and adjust staffing early if the demand is front-loaded.",
-      "Share the playbook with peer PAs so it becomes standard for high-volume days.",
+    primaryPrinciples: [
+      "Deliver Results",
+      "Insist on the Highest Standards",
     ],
+    secondaryPrinciples: ["Customer Obsession", "Invent and Simplify"],
     situation:
-      "During Prime Day at MKC6, 5,500 SmartPac CPTs hit inside a tight two-hour window and risked backing up the tote router.",
+      "When I took ownership of Pack Singles at MKC6, the department was only running at 80% of plan, defects were high, and workstation and coaching standards varied across corners.",
     task:
-      "Push at-risk shipments out on time without creating a new bottleneck somewhere else in the building.",
+      "I had to turn the department around without extra headcount by resetting what good looked like and building a system that would hold across shifts.",
     action:
-      "I re-read staffing and productivity in real time, pulled support only from safe areas, added a packer to the line, assigned an extra dwell lead, and had that lead prioritize shipments at highest risk of missing first.",
+      "I audited every corner using the SLIM dashboard, found that layout inconsistencies were costing 8 to 12 seconds per unit, standardized the workstation setup, and created a visual guide for all shifts. I also trained more than 60 associates through a train-the-trainer model and used VOC and DPMO data to run targeted quality coaching instead of generic feedback.",
     result:
-      "We pushed out 5,478 of 5,500 CPTs, kept totes off the tote router, and protected other departments from drying up.",
+      "Pack rate rose from 80% of plan to 110% in three months, sustained between 104% and 113% month over month, DPMO dropped 35%, and station health improved from 55% to 60% up to 85% to 90%.",
+    reflection:
+      "Standards do not raise themselves. Someone has to decide that underperformance is not acceptable and then build the system that makes the higher bar stick.",
+    followUpQuestions: [
+      "How did you identify the workstation issues as the root cause? - Walk through the station health audit and timing study.",
+      "What resistance did you face when standardizing across corners? - Be ready with a real pushback example.",
+      "How did you train 60+ associates without losing productivity? - Explain the train-the-trainer model and scheduling approach.",
+      "How do you define quality as a customer promise? - Show how VOC data changed your coaching priorities.",
+    ],
   },
   {
     id: "story-3",
     storyNumber: 3,
-    shortLabel: "Developing an AA",
-    title: "Developing an AA",
-    signalLane: "leadership",
+    shortLabel: "Prime Day CPT Recovery",
+    title: "The Prime Day CPT Recovery",
+    signalLane: "ownership",
     categoryIds: [
-      "hire-and-develop-the-best",
-      "earn-trust",
-      "insist-on-the-highest-standards",
-      "customer-obsession",
-      "strive-to-be-earth-s-best-employer",
-      "influencing",
-      "learning-orientation",
-      "team-and-people-management",
+      "bias-for-action",
+      "deliver-results",
+      "dive-deep",
+      "ownership",
+      "plan-and-prioritize",
+      "judgment-and-decision-making",
+      "adaptability",
     ],
     keyNumbers: [
-      "Pack rate 50 UPH to 80 UPH",
-      "60% improvement",
-      "Became a PG",
+      "5,478 of 5,500 CPTs cleared",
+      "99.6% recovery",
+      "2-hour window",
+      "Zero preventable CPT misses",
     ],
-    bestFor: ["Hire and Develop", "Earn Trust", "Best Employer"],
-    challenge:
-      "The associate had been overlooked for months because leaders only valued speed, not quality plus potential.",
-    lesson:
-      "The best development starts with changing how someone sees themselves.",
-    standardWork: [
-      "Review quality metrics alongside rate during coaching.",
-      "Use coaching frameworks that do not overlook quieter high-potential associates.",
-    ],
+    primaryPrinciples: ["Bias for Action"],
+    secondaryPrinciples: ["Deliver Results", "Dive Deep", "Ownership"],
     situation:
-      "During one of the slowest seasons, an associate was below expected rate but had flawless quality and zero defects.",
+      "During Prime Day at MKC6, I had 5,500 CPTs due inside a two-hour window with no extra headcount available to pull.",
     task:
-      "Develop that untapped potential into someone who could help elevate the rest of the team.",
+      "I had to clear the window on time using the people and stations already on the floor while making staffing calls quickly enough to recover in flight.",
     action:
-      "I showed them the strengths hidden by surface metrics, reframed flawless quality as a foundation for speed, coached their physical process to remove wasted motion, paired them with new hires as a quality mentor, and mapped a career path with them.",
+      "I tracked the scanned bucket and actual throughput against the required pace, spotted that we were trending short, moved a packer from a lower-priority path to Singles, and added a dwell lead to remove the handoff delay between packing and dock.",
     result:
-      "Their pack rate climbed from 50 to 80 UPH while maintaining flawless quality, and they grew into a trusted PG.",
+      "We cleared 5,478 of 5,500 CPTs, a 99.6% recovery rate. The 22 that missed were late-arriving volume outside our control, so we had zero preventable CPT misses.",
+    reflection:
+      "In a live operation, waiting for perfect information is usually the same thing as choosing to lose. Speed matters when the data already tells you what lever to pull.",
+    followUpQuestions: [
+      "How did you calculate that you were trending short? - Explain the real-time rate math.",
+      "Why did you add a dwell lead specifically? - Describe the handoff delay between packing and dock.",
+      "What happened to the path you pulled the packer from? - Walk through the tradeoff decision.",
+      "What would you have done differently if you had missed? - Show how you think after the fact.",
+    ],
   },
   {
     id: "story-4",
     storyNumber: 4,
-    shortLabel: "Tough Conversation",
-    title: "The Tough Conversation",
-    signalLane: "stakeholder_management",
-    categoryIds: [
-      "earn-trust",
-      "have-backbone-disagree-and-commit",
-      "hire-and-develop-the-best",
-      "insist-on-the-highest-standards",
-      "deliver-results",
-      "conscientiousness",
-      "influencing",
-      "team-and-people-management",
-    ],
-    keyNumbers: [
-      "15 to 20 seconds per unit gap",
-      "Improved to 70 UPH",
-      "Turned an attrition risk into a contributor",
-    ],
-    bestFor: ["Earn Trust", "Have Backbone", "Hire and Develop"],
-    challenge:
-      "Other leaders avoided the real conversation, and being honest only mattered if I paired it with a concrete plan.",
-    lesson:
-      "The conversations leaders avoid are usually the ones that matter most.",
-    standardWork: [
-      "Run individualized performance reviews as part of the regular coaching rhythm.",
-      "Use data-backed feedback to pinpoint the actual bottleneck early.",
-    ],
-    situation:
-      "One associate consistently underperformed with both rate and quality issues, and prior coaching had been generic and ineffective.",
-    task:
-      "Have an honest, respectful conversation, build a real improvement plan, and give them a fair path back to contribution.",
-    action:
-      "I met privately, walked through their own data, isolated the exact process step costing 15 to 20 seconds per unit, demonstrated the better technique, had them practice it, set clear expectations, prepared a Plan B if coaching failed, and checked in every day for a week.",
-    result:
-      "Within a month they improved to above-average performance, became more engaged, and later mentored others.",
-  },
-  {
-    id: "story-5",
-    storyNumber: 5,
-    shortLabel: "Floor Rescue",
-    title: "The Floor Rescue",
-    signalLane: "ownership",
-    categoryIds: [
-      "ownership",
-      "bias-for-action",
-      "hire-and-develop-the-best",
-      "earn-trust",
-      "deliver-results",
-      "customer-obsession",
-      "insist-on-the-highest-standards",
-      "adaptability",
-      "collaboration",
-      "customer-orientation",
-      "judgment-and-decision-making",
-      "plan-and-prioritize",
-    ],
-    keyNumbers: [
-      "Scanned bucket 10K to under 7K",
-      "Avoided 12K shutdown threshold",
-      "3,000-unit recovery",
-    ],
-    bestFor: ["Ownership", "Bias for Action", "Customer Obsession"],
-    challenge:
-      "I had to leave my own side of the floor without losing control there while solving a building-wide shutdown risk.",
-    lesson:
-      "The best time to invest in people is before you need them.",
-    standardWork: [
-      "Monitor scanned-bucket watch points and intervene at 7K to 8K instead of scrambling at 10K.",
-      "Build issue-response thresholds into the shift handoff template.",
-      "Keep a quick-reference guide for mechanical issues and escalation paths.",
-    ],
-    situation:
-      "On a peak day at MKC6, the shipping sorter jammed and scanned bucket volume climbed toward the 12K point where pick would stop across the building.",
-    task:
-      "Restore flow before the shutdown threshold while protecting safety, keeping my own side stable, and getting RME engaged immediately.",
-    action:
-      "I called RME directly, handed my radio to an associate I had developed to hold my area, crossed to stabilize the overwhelmed side, placed associates to downstack at the SLAM lines, assigned runners to protect safety hazards, and stayed until the sorter was repaired and control returned.",
-    result:
-      "We cut scanned bucket from 10K to under 7K, prevented pick from stopping, recovered roughly 3,000 units, and kept the floor safe without performance drop on my side.",
-  },
-  {
-    id: "story-6",
-    storyNumber: 6,
-    shortLabel: "The Misread",
-    title: "The Misread (Failure)",
-    signalLane: "adaptability",
-    categoryIds: [
-      "customer-obsession",
-      "ownership",
-      "learn-and-be-curious",
-      "insist-on-the-highest-standards",
-      "deliver-results",
-      "are-right-a-lot",
-      "conscientiousness",
-      "customer-orientation",
-      "interpretation-and-analysis",
-      "learning-orientation",
-    ],
-    keyNumbers: [
-      "Missed 258 CPTs",
-      "High-volume day",
-      "Failure became standard-work redesign",
-    ],
-    bestFor: ["Ownership", "Learn and Be Curious", "Are Right, a Lot"],
-    challenge:
-      "I had to own a visible miss instead of blaming the plan, staffing, or timing.",
-    lesson:
-      "Aggregate numbers can lie to you. The time to act is when you still have time to recover.",
-    standardWork: [
-      "Run a first-30-minute CPT distribution versus pace check every shift.",
-      "Watch CPT windows and process paths instead of relying on department-level aggregate numbers.",
-      "Share the lesson with other PAs so the same miss does not repeat elsewhere.",
-    ],
-    situation:
-      "Early in my time as a PA, I looked at department-level numbers on a high-volume day and assumed heavy CPT volume was still under control.",
-    task:
-      "Get CPTs out on time, even though the surface data made the situation look safer than it really was.",
-    action:
-      "I reacted late, pulled extra support, and prioritized the highest-risk packages, but I only made the right moves after the backlog was already beyond full recovery.",
-    result:
-      "We missed 258 CPTs. I owned it, rebuilt the visibility model around CPT windows and path-level pacing, and used that failure to prevent repeats.",
-  },
-  {
-    id: "story-7",
-    storyNumber: 7,
-    shortLabel: "Solo Operator",
-    title: "The Solo Operator",
-    signalLane: "leadership",
-    categoryIds: [
-      "ownership",
-      "deliver-results",
-      "hire-and-develop-the-best",
-      "earn-trust",
-      "think-big",
-      "customer-obsession",
-      "bias-for-action",
-      "success-and-scale-bring-broad-responsibility",
-      "adaptability",
-      "collaboration",
-      "deal-with-ambiguity",
-      "judgment-and-decision-making",
-      "plan-and-prioritize",
-      "team-and-people-management",
-      "vision-and-strategy",
-    ],
-    keyNumbers: [
-      "3 months as the only leader in Singles",
-      "Up to 200 associates",
-      "5 PGs developed",
-      "3 of 5 PGs became PAs",
-    ],
-    bestFor: ["Ownership", "Hire and Develop", "Think Big"],
-    challenge:
-      "The hardest part was building the operating rhythm for work that normally would have been shared across multiple leaders.",
-    lesson:
-      "The real test of a leader is how you perform when you do not have support.",
-    standardWork: [
-      "Use a daily operating rhythm: startup checklist, first-hour check, CPT review, scanned-bucket monitoring, and safety walks.",
-      "Give PGs real ownership of floor sections early and coach them in real time.",
-      "Keep a daily review and individualized feedback cadence even during leadership gaps.",
-    ],
-    situation:
-      "For three months on FHD at MKC6, I ran Singles without an AM or another PA while covering all process paths and escalations.",
-    task:
-      "Keep performance at standard or better, protect customers and associates, and build leadership depth around me so the floor did not depend on one person.",
-    action:
-      "I built a repeatable operating rhythm, identified five associates with leadership potential, coached them as PGs with real floor ownership, and kept daily reviews and feedback loops in place while making all department-level calls.",
-    result:
-      "Quality held, rate stayed at or above plan, and three of the five PGs later became PAs, leaving behind systems that outlasted the leadership gap.",
-  },
-  {
-    id: "story-8",
-    storyNumber: 8,
     shortLabel: "Wrong Box Deep Dive",
     title: "The Wrong Box Deep Dive",
     signalLane: "technical_depth",
     categoryIds: [
       "dive-deep",
-      "frugality",
-      "ownership",
       "are-right-a-lot",
-      "customer-obsession",
+      "insist-on-the-highest-standards",
+      "invent-and-simplify",
+      "interpretation-and-analysis",
+      "judgment-and-decision-making",
+    ],
+    keyNumbers: [
+      "70% to 71% of errors were invisible",
+      "2 months of data analyzed",
+      "Wrong-box coaching redirected to controllable defects",
+    ],
+    primaryPrinciples: ["Dive Deep", "Are Right, A Lot"],
+    secondaryPrinciples: [
+      "Insist on the Highest Standards",
+      "Invent and Simplify",
+    ],
+    situation:
+      "Wrong-box defects kept showing up in the department, and the standing belief was that associates simply needed more coaching.",
+    task:
+      "I needed to test that assumption, find the real root cause, and stop us from coaching the wrong problem.",
+    action:
+      "I pulled two months of wrong-box data, broke it down by error type, and found that 70% to 71% of the errors were invisible to our quality tracking. I rebuilt the classification approach so we could separate controllable from uncontrollable defects and coach only the errors associates could actually prevent.",
+    result:
+      "Wrong-box defects became visible in the data, coaching got more precise, and leaders stopped blaming associates for errors they could not control.",
+    reflection:
+      "The most dangerous assumption in operations is thinking you know the problem before you look at the data. That mindset keeps teams stuck.",
+    followUpQuestions: [
+      "How did you discover the 70% to 71% were invisible? - Walk through the data breakdown.",
+      "How did you build the new coaching framework? - Explain the controllable versus uncontrollable split.",
+      "Did anyone push back when you challenged the current approach? - Be ready to show backbone if that happened.",
+    ],
+  },
+  {
+    id: "story-5",
+    storyNumber: 5,
+    shortLabel: "Developing an Associate",
+    title: "Developing an Associate",
+    signalLane: "leadership",
+    categoryIds: [
+      "hire-and-develop-the-best",
+      "earn-trust",
+      "insist-on-the-highest-standards",
+      "team-and-people-management",
+      "influencing",
+    ],
+    keyNumbers: [
+      "50 UPH to 80 UPH",
+      "60% improvement",
+      "Quality defects to zero",
+      "Associate became a PG",
+    ],
+    primaryPrinciples: ["Hire and Develop the Best"],
+    secondaryPrinciples: ["Earn Trust", "Insist on the Highest Standards"],
+    situation:
+      "I had an associate in Pack Singles running at 50 UPH with elevated defects. The usual move would have been escalation, but the real issue was technique, not effort.",
+    task:
+      "I needed to raise their performance without crushing confidence, and I had to fix quality before trying to force speed.",
+    action:
+      "I coached privately with their personal data, fixed the two main defect types first, required two clean shifts before shifting to speed, and then used takt-time observations to remove wasted motion one change at a time with daily follow-ups.",
+    result:
+      "The associate improved from 50 UPH to 80 UPH, defects dropped to zero, and they later became a Process Guide.",
+    reflection:
+      "Speed without quality is fake progress. Once quality is stable, speed usually follows because the associate stops wasting motion correcting mistakes.",
+    followUpQuestions: [
+      "Why did you choose quality-first instead of rate-first? - Explain why quality issues cost more time overall.",
+      "What was the associate's reaction when you showed them their data? - Be ready with the actual conversation.",
+      "How long did the improvement take? - Walk through the timeline week by week.",
+    ],
+  },
+  {
+    id: "story-6",
+    storyNumber: 6,
+    shortLabel: "Tough Conversation",
+    title: "The Tough Conversation",
+    signalLane: "stakeholder_management",
+    categoryIds: [
+      "earn-trust",
+      "hire-and-develop-the-best",
+      "insist-on-the-highest-standards",
+      "influencing",
+      "conscientiousness",
+      "team-and-people-management",
+    ],
+    keyNumbers: [
+      "45 UPH to 70+ UPH",
+      "Near-zero defects",
+      "Improvement in 2 weeks",
+    ],
+    primaryPrinciples: ["Earn Trust"],
+    secondaryPrinciples: [
+      "Hire and Develop the Best",
+      "Insist on the Highest Standards",
+    ],
+    situation:
+      "I had an associate at 45 UPH with recurring defects, and prior coaching on the floor had created defensiveness instead of improvement.",
+    task:
+      "I needed to have a direct but productive conversation that changed behavior rather than just documented the gap.",
+    action:
+      "I pulled them aside privately, reviewed individualized data with them, opened by asking what they thought was getting in the way, and narrowed the plan to two specific changes with daily follow-ups for a week.",
+    result:
+      "Within two weeks they improved to over 70 UPH, defects dropped near zero, and they became one of the most engaged people on the shift.",
+    reflection:
+      "Trust gets built in private. The moment feedback becomes public, people start defending themselves instead of hearing you.",
+    followUpQuestions: [
+      "What did they say when you asked what was getting in the way? - Be ready with the actual answer.",
+      "Did they push back during the conversation? - Explain how you handled resistance if there was any.",
+      "How did you decide on just two things to change? - Show why focused coaching beats overwhelming feedback.",
+    ],
+  },
+  {
+    id: "story-7",
+    storyNumber: 7,
+    shortLabel: "Floor Rescue",
+    title: "The Floor Rescue",
+    signalLane: "ownership",
+    categoryIds: [
+      "bias-for-action",
+      "ownership",
+      "deliver-results",
+      "earn-trust",
+      "adaptability",
+      "plan-and-prioritize",
+      "team-and-people-management",
+    ],
+    keyNumbers: [
+      "Scanned bucket 10,000 to under 7,000",
+      "Avoided 12,000 shutdown threshold",
+      "No CPT misses from the jam",
+    ],
+    primaryPrinciples: ["Bias for Action", "Ownership"],
+    secondaryPrinciples: ["Deliver Results", "Earn Trust"],
+    situation:
+      "During a shift at MKC6, the sorter jammed and the scanned bucket spiked to 10,000. We were only 2,000 packages from a building shutdown threshold and there was no AM present.",
+    task:
+      "I needed to get the sorter issue fixed, stabilize the scanned bucket, and keep my own floor moving without dropping one area while I handled the other.",
+    action:
+      "I called RME directly, handed my radio to a Process Guide I had developed so they could own my side of the floor, crossed over to the sorter area, and coordinated the response while getting bucket updates every two minutes.",
+    result:
+      "We recovered the scanned bucket from 10,000 to under 7,000, avoided a shutdown, and had no CPT misses from the jam.",
+    reflection:
+      "You cannot be in two places at once, but your development investments can. The handoff only worked because I had already built capability in the PG I trusted.",
+    followUpQuestions: [
+      "How did you decide to bypass the standard notification chain? - Explain the time-sensitive threshold call.",
+      "What was the PG's background? - Be ready with specifics on who you trusted with the floor.",
+      "What was the building shutdown threshold? - Know the exact threshold and your remaining margin.",
+    ],
+  },
+  {
+    id: "story-8",
+    storyNumber: 8,
+    shortLabel: "The Misread",
+    title: "The Misread",
+    signalLane: "adaptability",
+    categoryIds: [
+      "ownership",
+      "learn-and-be-curious",
+      "are-right-a-lot",
+      "deliver-results",
+      "adaptability",
+      "learning-orientation",
       "interpretation-and-analysis",
     ],
     keyNumbers: [
-      "70% to 71% of wrong-box errors were invisible",
-      "Two months of data analyzed",
+      "258 CPTs missed",
+      "New per-path check every 30 minutes",
+      "Failure turned into Prime Day playbook",
     ],
-    bestFor: ["Dive Deep", "Frugality", "Are Right, a Lot"],
-    challenge:
-      "The deeper issue was not only the defect itself, but the fact that the system was missing the data needed to fix it.",
-    lesson:
-      "If you are not capturing the data, you cannot fix the problem.",
-    standardWork: [
-      "Require associates to use the problem-solve menu and trigger Andon every time the condition appears.",
-      "Teach the difference between controllable and uncontrollable defects.",
-    ],
+    primaryPrinciples: ["Ownership", "Learn and Be Curious"],
+    secondaryPrinciples: ["Are Right, A Lot", "Deliver Results"],
     situation:
-      "DPMO in Singles was elevated because boxes were being upsized unnecessarily, and no one had dug into the cause.",
+      "On a shift where I owned a CPT window with 258 packages, I misread the pacing data and waited too long to pull the staffing lever needed to recover.",
     task:
-      "Find the driver, quantify the cost, and give Amazon usable data to improve the box-sizing algorithm.",
+      "I had to own the miss, explain exactly why it happened, and make sure I never repeated it.",
     action:
-      "I pulled two months of data, broke wrong-box adjustments down into controllable versus uncontrollable causes, discovered that 70% to 71% of errors were not triggering Andon, and built a coaching framework so associates captured the defect correctly every time.",
+      "I ran a root-cause analysis on my own decision making, realized I had been watching aggregate throughput instead of per-path productivity, and rebuilt my monitoring cadence around per-path checks every 30 minutes with an immediate staffing trigger if any path dropped below threshold.",
     result:
-      "We moved from invisible defects to properly captured ones, gave Amazon better input data for box-sizing improvements, and reduced waste from unnecessary upsizing.",
+      "The 258 CPT miss remained a real failure, but the monitoring system I built afterward became the basis for later recoveries, including clearing 5,478 of 5,500 CPTs on Prime Day.",
+    reflection:
+      "The difference between a mistake and a failure is what you do after it. I did not hide the miss. I turned it into operating standard.",
+    followUpQuestions: [
+      "What specifically did you misread in the data? - Explain the aggregate versus per-path gap.",
+      "How did you tell your AM about the miss? - Show direct accountability.",
+      "What leading indicator threshold did you set afterward? - Know the number you used.",
+      "Have you missed a CPT since then? - Connect the answer to Prime Day.",
+    ],
   },
   {
     id: "story-9",
@@ -396,67 +409,405 @@ export const AMAZON_PREP_DECK_STORIES: readonly PrepDeckStoryTemplate[] = [
       "invent-and-simplify",
       "insist-on-the-highest-standards",
       "dive-deep",
-      "customer-obsession",
       "collaboration",
+      "plan-and-prioritize",
     ],
     keyNumbers: [
-      "Station health 55% to 60% up to 85% to 90%",
-      "PPmix rates 50 to 60 UPH up to 70 to 80 UPH",
-      "Expected property damage down 90%",
+      "55% to 60% up to 85% to 90%",
+      "25 to 30 point station health lift",
+      "Rate and quality variability reduced",
     ],
-    bestFor: ["Invent and Simplify", "Highest Standards", "Dive Deep"],
-    challenge:
-      "The floor looked like a people-performance problem until the workstation design revealed itself as the real blocker.",
-    lesson:
-      "Sometimes the biggest performance gains come from fixing the environment, not coaching the person.",
-    standardWork: [
-      "Use station-health checks to look for environment constraints before defaulting to coaching the associate.",
-      "Partner with 5S for safety and layout improvements when design limits performance.",
-    ],
+    primaryPrinciples: ["Invent and Simplify"],
+    secondaryPrinciples: ["Insist on the Highest Standards", "Dive Deep"],
     situation:
-      "Even-numbered stations consistently underperformed odd-numbered stations because equipment overlap and dual tape machines created a poor layout.",
+      "Station health in Pack Singles was only 55% to 60%, so associates were losing time at shift start and setup variability was driving rate and quality gaps across corners.",
     task:
-      "Fix station design so every station could perform at roughly the same level without creating new safety issues.",
+      "I needed to find the root cause, redesign the setup, and make the fix stick even when I was not on shift.",
     action:
-      "I identified the layout root cause, replaced dual tape machines with single units, rotated tables 180 degrees for more workspace, and partnered with the 5S team on floor-mat safety improvements.",
+      "I compared high-performing and low-performing stations, found that dual tape-machine placement and table orientation were the biggest variables, redesigned the setup, created a visual guide, and trained Process Guides to verify station health at startup.",
     result:
-      "Station health rose to roughly 85% to 90%, PPmix rates climbed to 70 to 80 UPH, and the layout was expected to cut property damage by 90%.",
+      "Station health improved to 85% to 90%, associates stopped losing time fixing workstations at shift start, and rate and quality variability between corners dropped.",
+    reflection:
+      "You cannot coach someone to hit rate if their workspace is fighting them. Fix the environment first, then coach the person.",
+    followUpQuestions: [
+      "How did you identify dual tape placement as the root cause? - Explain the comparison study.",
+      "What customer impact did the station improvements have? - Connect the fix to quality and downstream experience.",
+      "How did you sustain it across shifts you were not on? - Explain the Process Guide verification routine.",
+    ],
   },
   {
     id: "story-10",
     storyNumber: 10,
-    shortLabel: "Recycling Initiative",
-    title: "The Recycling Initiative",
+    shortLabel: "Continuous Learner",
+    title: "The Continuous Learner",
+    signalLane: "technical_depth",
+    categoryIds: [
+      "learn-and-be-curious",
+      "hire-and-develop-the-best",
+      "think-big",
+      "learning-orientation",
+      "interpretation-and-analysis",
+    ],
+    keyNumbers: [
+      "BS in Business Administration and Data Analytics",
+      "MBA in Business Analytics in progress",
+      "5 Google certificates",
+      "Lean Six Sigma Yellow Belt",
+    ],
+    primaryPrinciples: ["Learn and Be Curious"],
+    secondaryPrinciples: ["Hire and Develop the Best", "Think Big"],
+    situation:
+      "I knew operations experience alone would not be enough to move into Area Manager and beyond, especially if I wanted a stronger analytical and business toolkit.",
+    task:
+      "I needed to build that capability on my own time while still working full-time night shifts.",
+    action:
+      "I completed a Business Administration and Data Analytics degree with a 3.29 GPA, started an MBA in Business Analytics, earned five Google professional certificates, and added Lean Six Sigma training. I applied the learning directly to quality deep dives, SmartPac analysis, and station health work instead of treating school as separate from the floor.",
+    result:
+      "I built a real analytical foundation while working full time, and the new toolkit directly improved how I approached operational decisions and root-cause analysis.",
+    reflection:
+      "Curiosity is not a trait. It is a habit. I did not wait for someone to train me in analytics. I went and built that capability myself.",
+    followUpQuestions: [
+      "Give me an example where your education changed a decision on the floor. - Link it to the wrong-box or SmartPac work.",
+      "Why data analytics as a focus? - Connect it to the role you want next.",
+      "How did you manage school with full-time shifts? - Be ready with your actual routine.",
+    ],
+  },
+  {
+    id: "story-11",
+    storyNumber: 11,
+    shortLabel: "Blackout",
+    title: "The Blackout",
+    signalLane: "ownership",
+    categoryIds: [
+      "bias-for-action",
+      "customer-obsession",
+      "ownership",
+      "earn-trust",
+      "adaptability",
+      "plan-and-prioritize",
+      "team-and-people-management",
+    ],
+    keyNumbers: [
+      "40+ associates",
+      "Zero safety incidents",
+      "10+ performance reviews referenced it",
+    ],
+    primaryPrinciples: ["Bias for Action", "Customer Obsession"],
+    secondaryPrinciples: ["Ownership", "Earn Trust"],
+    situation:
+      "During a shift at MKC6, the Singles department lost power while my Area Manager was absent and I was the only leader responsible for more than 40 associates in an active packing environment.",
+    task:
+      "I had to secure the floor, account for every associate, and decide whether operations could safely resume without a playbook for that exact situation.",
+    action:
+      "I stopped all packing immediately, directed associates to stay at station to prevent low-visibility injuries, conducted a headcount, communicated over the PA system, contacted RME and facilities for restoration status, used the downtime for safety walkthroughs, and verified every station before restart.",
+    result:
+      "We had zero safety incidents, all associates were accounted for within minutes, and operations resumed cleanly once power was restored.",
+    reflection:
+      "Safety leadership is what you do when there is no checklist in front of you. Calm, decisive action in a crisis builds trust faster than months of normal operations.",
+    followUpQuestions: [
+      "Walk me through the first 60 seconds after the lights went out. - Know the order of your actions cold.",
+      "How did you communicate with 40+ associates without power? - Explain the PA and direct communication approach.",
+      "Did anyone panic or refuse direction? - Be ready with a real interaction if one happened.",
+    ],
+  },
+  {
+    id: "story-12",
+    storyNumber: 12,
+    shortLabel: "Field Sense Survey",
+    title: "The Field Sense Survey",
     signalLane: "leadership",
     categoryIds: [
-      "success-and-scale-bring-broad-responsibility",
-      "ownership",
-      "think-big",
-      "frugality",
       "invent-and-simplify",
+      "strive-to-be-earth-s-best-employer",
+      "customer-obsession",
+      "dive-deep",
+      "influencing",
+      "collaboration",
+      "team-and-people-management",
+    ],
+    keyNumbers: [
+      "SLI unfavorable 29% to 20%",
+      "9-point improvement",
+      "Dual-purpose survey for safety and development",
+    ],
+    primaryPrinciples: [
+      "Invent and Simplify",
+      "Strive to be Earth's Best Employer",
+    ],
+    secondaryPrinciples: ["Customer Obsession", "Dive Deep"],
+    situation:
+      "Singles had a 29% unfavorable SLI score and associates had no formal path to raise safety concerns or express interest in cross-training.",
+    task:
+      "I needed to create a mechanism for associate voice that covered both safety concerns and development interest because no structured channel existed.",
+    action:
+      "I designed and launched the Field Sense Survey, walked associates through how to use it, reviewed every submission, categorized safety concerns by severity, and escalated the highest-priority items with specific recommendations.",
+    result:
+      "The unfavorable SLI score improved from 29% to 20%, multiple safety issues surfaced and got resolved, and the same tool created a development pipeline for indirect-path training.",
+    reflection:
+      "Associates closest to the work usually see the problems first. The gap was not awareness. It was the lack of a channel to turn that awareness into action.",
+    followUpQuestions: [
+      "What triggered you to build this instead of using existing channels? - Describe the gap you saw.",
+      "How did you follow up on the safety concerns that came in? - Walk through one specific example.",
+      "Did leadership resist when you escalated issues they had not flagged? - Be ready if there was tension.",
+    ],
+  },
+  {
+    id: "story-13",
+    storyNumber: 13,
+    shortLabel: "SmartPac Productivity",
+    title: "SmartPac Productivity Transformation",
+    signalLane: "problem_solving",
+    categoryIds: [
+      "deliver-results",
+      "dive-deep",
+      "insist-on-the-highest-standards",
+      "interpretation-and-analysis",
+      "conscientiousness",
+    ],
+    keyNumbers: [
+      "420 UPH to 470-510 UPH",
+      "50+ UPH improvement",
+      "12% throughput lift",
+    ],
+    primaryPrinciples: ["Deliver Results"],
+    secondaryPrinciples: ["Dive Deep", "Insist on the Highest Standards"],
+    situation:
+      "SmartPac productivity had plateaued at 420 UPH for long enough that it was treated as normal, and nobody had broken down where the workflow was losing time.",
+    task:
+      "I was given ownership of SmartPac productivity and had to raise the rate without extra headcount or equipment.",
+    action:
+      "I timed the full sequence end to end, found the biggest losses in transitions and exception handling rather than packing itself, redesigned the workflow around staging and positioning, and coached each associate to their specific bottleneck through daily takt-time observation.",
+    result:
+      "SmartPac productivity rose from 420 UPH to 470-510 UPH, a sustained 50+ UPH gain and about a 12% lift in throughput with no extra labor or equipment.",
+    reflection:
+      "Machine-paced processes can trick you into blaming the machine. Most of the real loss was in how people interacted with the machine between steps.",
+    followUpQuestions: [
+      "How did you identify which transitions were costing the most time? - Walk through the observation method.",
+      "What did you do when an associate plateaued despite coaching? - Explain how you changed your approach.",
+      "How did you sustain the gains after you moved on? - Show how it became workflow, not heroics.",
+    ],
+  },
+  {
+    id: "story-14",
+    storyNumber: 14,
+    shortLabel: "Smalls Campaign",
+    title: "The Smalls Bottom Performer Campaign",
+    signalLane: "leadership",
+    categoryIds: [
+      "hire-and-develop-the-best",
+      "insist-on-the-highest-standards",
+      "dive-deep",
+      "team-and-people-management",
+      "interpretation-and-analysis",
+      "influencing",
+    ],
+    keyNumbers: [
+      "15 underperformers down to 7 in 1 month",
+      "Smalls rate 199 to 214 UPH",
+      "Only 3 regular packers below goal by Apr 2024",
+    ],
+    primaryPrinciples: ["Hire and Develop the Best"],
+    secondaryPrinciples: ["Insist on the Highest Standards", "Dive Deep"],
+    situation:
+      "I had 15 Smalls packers below the 160 UPH goal, many of whom had been in role for months and had only ever heard generic feedback like go faster.",
+    task:
+      "I set a goal to get every Smalls packer above 160 UPH through individualized coaching and data, not pressure or write-ups.",
+    action:
+      "I ranked each underperformer by gap to goal, started with the quickest wins, ran takt-time observations on every associate, fixed layout issues where the workstation was part of the problem, and built individual coaching plans with daily check-ins tied to each person's baseline.",
+    result:
+      "Within one month I cut the number of underperforming Smalls packers from 15 to 7, raised the overall Smalls rate from 199 to 214 UPH, and later pushed three more above goal.",
+    reflection:
+      "Telling someone to go faster is not coaching. Real coaching starts with where the time loss is and what one change will remove it.",
+    followUpQuestions: [
+      "What did you do with the three still below goal? - Explain the escalation and continued coaching path.",
+      "How did you prioritize who to coach first? - Walk through the gap-to-goal ranking logic.",
+      "How was this different from what previous leaders did? - Contrast generic coaching with individualized, data-backed coaching.",
+    ],
+  },
+  {
+    id: "story-15",
+    storyNumber: 15,
+    shortLabel: "5S Standardization",
+    title: "The 5S Standardization Project",
+    signalLane: "problem_solving",
+    categoryIds: [
+      "insist-on-the-highest-standards",
+      "invent-and-simplify",
+      "ownership",
+      "collaboration",
+      "plan-and-prioritize",
+    ],
+    keyNumbers: [
+      "Standardized all 4 corners",
+      "Smalls and SmartPac included",
+      "Green station readiness maintained in SLIM",
+    ],
+    primaryPrinciples: ["Insist on the Highest Standards"],
+    secondaryPrinciples: ["Invent and Simplify", "Ownership"],
+    situation:
+      "Smalls and SmartPac stations varied by shift and corner, so associates were wasting time reorienting themselves at the start of each shift and station health stayed inconsistent.",
+    task:
+      "I needed to create one standard 5S setup for both station types and push it across all four corners.",
+    action:
+      "I partnered with the 5S team to audit current setups, chose the configuration that produced the best station health and fewest complaints, documented it visually, reset every corner, and trained both associates and other PAs on maintaining it with Process Guide startup checks.",
+    result:
+      "The standard was pushed to all four corners for Smalls and SmartPac, SLIM station readiness stayed green, and associates stopped burning time adjusting workstations at shift start.",
+    reflection:
+      "Consistency does not happen because people remember to be consistent. It happens when you take the setup decision out of their hands and make the right setup the default.",
+    followUpQuestions: [
+      "What was wrong with the previous setups? - Describe the exact variation hurting performance.",
+      "How did you get other PAs to maintain the standard? - Explain the Process Guide routine and visual guide.",
+    ],
+  },
+  {
+    id: "story-16",
+    storyNumber: 16,
+    shortLabel: "Training New Leadership",
+    title: "Training the New Leadership",
+    signalLane: "stakeholder_management",
+    categoryIds: [
+      "earn-trust",
+      "think-big",
+      "hire-and-develop-the-best",
+      "ownership",
+      "collaboration",
+      "influencing",
+      "team-and-people-management",
       "vision-and-strategy",
     ],
     keyNumbers: [
-      "Around 75% of metal wires recycled",
-      "Department waste tied back to carbon-footprint goals",
+      "2023 to 2024 turnover window",
+      "15+ performance reviews referenced trust",
+      "Multiple AMs and PAs onboarded",
     ],
-    bestFor: ["Success and Scale", "Ownership", "Think Big"],
-    challenge:
-      "Nobody had connected a small daily waste stream to the larger company responsibility, so the opportunity was easy to ignore.",
-    lesson:
-      "The biggest sustainability wins come from the people closest to the process.",
-    standardWork: [
-      "Create a collection and routing process that fits the normal daily workflow.",
-      "Coordinate with Non Inventory so the recycle path is repeatable, not ad hoc.",
-    ],
+    primaryPrinciples: ["Earn Trust", "Think Big"],
+    secondaryPrinciples: ["Hire and Develop the Best", "Ownership"],
     situation:
-      "Metal wires from the packaging process were being thrown away even though Amazon had a broader sustainability mission.",
+      "MKC6 Singles saw heavy leadership turnover, so new Area Managers and Process Assistants kept entering the department with limited knowledge of the process, metrics, and people.",
     task:
-      "Find a practical way to recycle the wire waste without slowing down operations.",
+      "I needed to get each new leader effective quickly so department performance did not dip, even though most of them were technically above me in the hierarchy.",
     action:
-      "I researched recycling options, built a collection and routing process, got team buy-in, and coordinated with Non Inventory so the new flow fit into normal work.",
+      "I built a consistent knowledge-transfer approach around startup rhythm, first-hour checks, CPT review, scanned-bucket monitoring, safety walks, SLIM station health, and key associate context. I proactively shared it, interchanged with new AMs at startup, and led with competence instead of waiting to be asked.",
     result:
-      "Roughly 75% of metal wires were recycled, and the department’s daily work aligned better with Amazon’s broader sustainability goals.",
+      "Multiple AMs and PAs were successfully onboarded, my Senior Ops Manager said I could run Singles independently, and the systems I built survived each transition because they were documented and transferable.",
+    reflection:
+      "When you are below someone in the hierarchy, you earn trust through competence. The fastest way to win a new leader's trust is to make them successful early.",
+    followUpQuestions: [
+      "Tell me about a specific new AM you trained. - Be ready with a named example.",
+      "What happened when a new AM wanted to do things differently? - Be ready for a backbone or disagree-and-commit follow-up.",
+    ],
+  },
+  {
+    id: "story-17",
+    storyNumber: 17,
+    shortLabel: "Indirect Rotation Advocacy",
+    title: "The Indirect Rotation Advocacy",
+    signalLane: "stakeholder_management",
+    categoryIds: [
+      "strive-to-be-earth-s-best-employer",
+      "have-backbone-disagree-and-commit",
+      "hire-and-develop-the-best",
+      "ownership",
+      "influencing",
+      "team-and-people-management",
+    ],
+    keyNumbers: [
+      "Formal indirect rotation framework launched",
+      "Opportunities survey tied into training",
+      "Deeper bench of cross-trained associates",
+    ],
+    primaryPrinciples: [
+      "Strive to be Earth's Best Employer",
+      "Have Backbone",
+    ],
+    secondaryPrinciples: ["Hire and Develop the Best", "Ownership"],
+    situation:
+      "Indirect roles in Singles kept going to the same people, which was burning out the regular indirects and leaving newer associates with no real growth path.",
+    task:
+      "I needed to create a fair rotation system that reduced fatigue, opened new development opportunities, and still won leadership support despite short-term disruption.",
+    action:
+      "I built the Indirect Acid Feed to track who was trained on which indirect paths, created a fair rotation cadence, and paired it with an Opportunities Field Sense Survey so associates could formally apply for indirect training. I then made the case to my AM that a cross-trained team was more resilient than a specialized one.",
+    result:
+      "The rotation framework was implemented, fatigue complaints from regular indirects eased, associates had a formal path into indirect training, and the team built a deeper cross-trained bench.",
+    reflection:
+      "If you only optimize for today's rate, you burn out the people who make tomorrow's rate possible. Sometimes the right leadership call accepts short-term inefficiency for long-term team health.",
+    followUpQuestions: [
+      "What was the AM's reaction when you proposed the rotation? - Be ready to show backbone if there was pushback.",
+      "How did the experienced indirects react to being rotated out? - Explain the associate conversations.",
+    ],
+  },
+  {
+    id: "story-18",
+    storyNumber: 18,
+    shortLabel: "Valley Staffing",
+    title: "The Valley Staffing Strategy",
+    signalLane: "problem_solving",
+    categoryIds: [
+      "frugality",
+      "deliver-results",
+      "are-right-a-lot",
+      "judgment-and-decision-making",
+      "interpretation-and-analysis",
+      "plan-and-prioritize",
+    ],
+    keyNumbers: [
+      "Support staffing reduced in valley periods",
+      "Direct packing capacity increased",
+      "Recognized for lean and mean staffing",
+    ],
+    primaryPrinciples: ["Frugality"],
+    secondaryPrinciples: ["Deliver Results", "Are Right A Lot"],
+    situation:
+      "I noticed we were consistently overstaffing the pack-support bucket during low-volume periods and spending hours where they were not creating value.",
+    task:
+      "I needed to reduce unnecessary labor spend without hurting department performance or associate experience.",
+    action:
+      "I tracked volume patterns across the shift, defined valley periods, reduced pack-support staffing only when demand truly dipped, and redeployed those hours to direct packing paths where they could drive rate. I used the data in syncs to show where it was safe to cut back.",
+    result:
+      "We reduced wasted support hours while maintaining performance, and the redeployed associates improved direct-path output instead of sitting in low-value support time.",
+    reflection:
+      "Frugality is not about cutting corners. It is about putting every hour where it creates the most value.",
+    followUpQuestions: [
+      "How did you define valley periods? - Explain the volume method and thresholds.",
+      "Did leadership question why you were cutting support staffing? - Show the data-backed case you made.",
+    ],
+  },
+  {
+    id: "story-19",
+    storyNumber: 19,
+    shortLabel: "Recycling Initiative",
+    title: "The Recycling Initiative",
+    signalLane: "ownership",
+    categoryIds: [
+      "success-and-scale-bring-broad-responsibility",
+      "ownership",
+      "invent-and-simplify",
+      "frugality",
+      "think-big",
+      "vision-and-strategy",
+    ],
+    keyNumbers: [
+      "75% of metal wire recycled",
+      "Rolled out to all 4 corners",
+      "30% annual cost savings from the broader program",
+    ],
+    primaryPrinciples: ["Success and Scale Bring Broad Responsibility"],
+    secondaryPrinciples: ["Ownership", "Invent and Simplify", "Frugality"],
+    situation:
+      "The Singles department generated metal wire waste every shift, and it was going into general waste even though Amazon had broader sustainability commitments.",
+    task:
+      "I needed to find out whether the material could be recycled, build a collection process that would not slow the operation, and launch it on my own initiative.",
+    action:
+      "I researched recycling options, coordinated with Non-Inventory, designed a collection flow that fit normal work, got buy-in from my AM, piloted it in one corner, and then rolled it out to all four Smalls corners once I confirmed it did not hurt rate.",
+    result:
+      "About 75% of the metal wire is now recycled, the process was documented as standard work across all four corners, and the broader sustainability program tracked 30% annual cost savings.",
+    reflection:
+      "The biggest sustainability wins come from the people closest to the process. You do not need executive sponsorship to start seeing waste and owning it.",
+    followUpQuestions: [
+      "How did you confirm recycling would not slow down rate? - Explain the pilot test in one corner.",
+      "What environmental compliance metric did you investigate next? - Be ready with the next step you explored.",
+      "Why did you take this on when it was not your job? - Connect it to broad responsibility and ownership.",
+    ],
   },
 ] as const;
 
@@ -464,82 +815,82 @@ export const AMAZON_PREP_DECK_ROUTER: readonly PrepDeckRouterEntry[] = [
   {
     cue: "Customer, promise, package, on time",
     categoryId: "customer-obsession",
-    primaryStoryIds: ["story-2", "story-5"],
+    primaryStoryIds: ["story-2", "story-11", "story-12"],
   },
   {
     cue: "Own it, outside your area, long term",
     categoryId: "ownership",
-    primaryStoryIds: ["story-7", "story-1"],
+    primaryStoryIds: ["story-1", "story-7", "story-8"],
   },
   {
     cue: "Speed, risk, act fast, no guidance",
     categoryId: "bias-for-action",
-    primaryStoryIds: ["story-5"],
+    primaryStoryIds: ["story-3", "story-7", "story-11"],
   },
   {
     cue: "Results, deadline, goal, deliver",
     categoryId: "deliver-results",
-    primaryStoryIds: ["story-2", "story-1"],
+    primaryStoryIds: ["story-1", "story-2", "story-13"],
   },
   {
     cue: "Standards, quality, improve, not good enough",
     categoryId: "insist-on-the-highest-standards",
-    primaryStoryIds: ["story-1", "story-8"],
+    primaryStoryIds: ["story-2", "story-9", "story-15"],
   },
   {
     cue: "Develop, coach, feedback, grow people",
     categoryId: "hire-and-develop-the-best",
-    primaryStoryIds: ["story-7", "story-3"],
+    primaryStoryIds: ["story-5", "story-14", "story-16"],
   },
   {
     cue: "Trust, honest, hard conversation, respect",
     categoryId: "earn-trust",
-    primaryStoryIds: ["story-3", "story-4"],
+    primaryStoryIds: ["story-6", "story-16", "story-1"],
   },
   {
     cue: "Data, root cause, dig in, analyze",
     categoryId: "dive-deep",
-    primaryStoryIds: ["story-8", "story-6"],
+    primaryStoryIds: ["story-4", "story-13", "story-12"],
   },
   {
     cue: "Disagree, push back, defend, commit",
     categoryId: "have-backbone-disagree-and-commit",
-    primaryStoryIds: ["story-4"],
+    primaryStoryIds: ["story-17", "story-1"],
   },
   {
     cue: "Learn, mistake, curious, new skill",
     categoryId: "learn-and-be-curious",
-    primaryStoryIds: ["story-6"],
+    primaryStoryIds: ["story-10", "story-8"],
   },
   {
     cue: "Simple, innovate, fix, redesign",
     categoryId: "invent-and-simplify",
-    primaryStoryIds: ["story-9"],
+    primaryStoryIds: ["story-9", "story-12", "story-15"],
   },
   {
     cue: "Big picture, vision, scale, beyond your team",
     categoryId: "think-big",
-    primaryStoryIds: ["story-7", "story-1"],
+    primaryStoryIds: ["story-16", "story-1", "story-19"],
   },
   {
     cue: "Decision, judgment, incomplete info",
     categoryId: "are-right-a-lot",
-    primaryStoryIds: ["story-6", "story-5"],
+    primaryStoryIds: ["story-4", "story-18", "story-8"],
   },
   {
     cue: "Cost, waste, do more with less",
     categoryId: "frugality",
-    primaryStoryIds: ["story-8", "story-1"],
-  },
-  {
-    cue: "Sustainability, broader responsibility, company mission",
-    categoryId: "success-and-scale-bring-broad-responsibility",
-    primaryStoryIds: ["story-10"],
+    primaryStoryIds: ["story-18", "story-19", "story-2"],
   },
   {
     cue: "Inclusive, best employer, overlooked people",
     categoryId: "strive-to-be-earth-s-best-employer",
-    primaryStoryIds: ["story-3"],
+    primaryStoryIds: ["story-12", "story-17", "story-5"],
+  },
+  {
+    cue: "Sustainability, broader responsibility, company mission",
+    categoryId: "success-and-scale-bring-broad-responsibility",
+    primaryStoryIds: ["story-19", "story-1"],
   },
 ] as const;
 
@@ -547,90 +898,90 @@ export const AMAZON_PREP_DECK_PANEL_PLAN: readonly PrepDeckPanelPlanEntry[] = [
   {
     interviewer: "HRBP",
     categoryId: "earn-trust",
-    primaryStoryId: "story-3",
-    backupStoryId: "story-4",
+    primaryStoryId: "story-6",
+    backupStoryId: "story-16",
   },
   {
     interviewer: "HRBP",
     categoryId: "have-backbone-disagree-and-commit",
-    primaryStoryId: "story-4",
+    primaryStoryId: "story-17",
     backupStoryId: "story-1",
   },
   {
     interviewer: "HRBP",
     categoryId: "hire-and-develop-the-best",
-    primaryStoryId: "story-7",
-    backupStoryId: "story-3",
+    primaryStoryId: "story-5",
+    backupStoryId: "story-14",
   },
   {
     interviewer: "HRBP",
     categoryId: "learn-and-be-curious",
-    primaryStoryId: "story-6",
-    backupStoryId: "story-6",
+    primaryStoryId: "story-10",
+    backupStoryId: "story-8",
   },
   {
     interviewer: "L6",
     categoryId: "bias-for-action",
-    primaryStoryId: "story-5",
-    backupStoryId: "story-2",
+    primaryStoryId: "story-3",
+    backupStoryId: "story-7",
   },
   {
     interviewer: "L6",
     categoryId: "deliver-results",
-    primaryStoryId: "story-2",
-    backupStoryId: "story-1",
+    primaryStoryId: "story-1",
+    backupStoryId: "story-2",
   },
   {
     interviewer: "L6",
     categoryId: "insist-on-the-highest-standards",
-    primaryStoryId: "story-1",
-    backupStoryId: "story-8",
+    primaryStoryId: "story-2",
+    backupStoryId: "story-9",
   },
   {
     interviewer: "L6",
     categoryId: "ownership",
     primaryStoryId: "story-1",
-    backupStoryId: "story-7",
+    backupStoryId: "story-8",
   },
   {
     interviewer: "L7",
     categoryId: "are-right-a-lot",
-    primaryStoryId: "story-6",
-    backupStoryId: "story-5",
+    primaryStoryId: "story-4",
+    backupStoryId: "story-18",
   },
   {
     interviewer: "L7",
     categoryId: "dive-deep",
-    primaryStoryId: "story-8",
-    backupStoryId: "story-1",
+    primaryStoryId: "story-4",
+    backupStoryId: "story-13",
   },
   {
     interviewer: "L7",
     categoryId: "invent-and-simplify",
     primaryStoryId: "story-9",
-    backupStoryId: "story-1",
+    backupStoryId: "story-12",
   },
   {
     interviewer: "L7",
     categoryId: "think-big",
-    primaryStoryId: "story-7",
-    backupStoryId: "story-10",
+    primaryStoryId: "story-16",
+    backupStoryId: "story-1",
   },
 ] as const;
 
 export const AMAZON_PREP_DECK_INTERVIEW_DAY_REMINDERS = [
   "Pause three seconds before answering so you sound controlled, not rushed.",
-  'Lead with the number when you can, because "80% to 110%" is stickier than a soft setup.',
+  'Lead with the number when you can, because "97.2 UPH against 95" is stickier than a soft setup.',
   'Say "I" instead of "we" so your personal contribution is impossible to miss.',
   "Spend the most time on Actions because that is where interviewers score how you think.",
   "End every answer with what changed: the result, the standard work, or the lesson.",
   "If they probe deeper, slow down instead of panicking. More probing usually means they are interested.",
-  "Do not repeat the same story across interviewers if you can avoid it because they compare notes in debrief.",
+  "Do not recycle the same story across interviewers when you can avoid it. Debriefs compare notes.",
 ] as const;
 
 export const AMAZON_PREP_DECK_QUESTIONS_TO_ASK = [
-  "What's the biggest challenge you'd want a new AM to tackle first?",
-  "How do you measure success for an AM in the first 90 days?",
+  "What is the biggest challenge you would want a new Area Manager to take on first?",
+  "How do you measure success for an Area Manager in the first 90 days?",
 ] as const;
 
 const PREP_DECK_STORY_LOOKUP = Object.fromEntries(
@@ -716,6 +1067,31 @@ export function buildPrepDeckStoryDraft(
     task: story.task,
     action: story.action,
     result: story.result,
-    reflection: story.lesson,
+    reflection: story.whatChanged || story.reflection,
   };
+}
+
+export function buildPrepDeckElitePreview(
+  story: PrepDeckStoryTemplate,
+): PrepDeckElitePreview {
+  const sourceDraft = buildPrepDeckStoryDraft(story);
+  const sourceScore = reviewStarStory(sourceDraft).score;
+  const polish = buildEliteStoryPolish(sourceDraft);
+
+  return {
+    sourceDraft,
+    sourceScore,
+    polishedDraft: polish.draft,
+    polishedScore: polish.polishedReview.score,
+    scoreDelta: polish.scoreDelta,
+    headline: polish.headline,
+    adjustments: polish.adjustments,
+    remainingGaps: polish.remainingGaps,
+  };
+}
+
+export function buildPrepDeckEliteStoryDraft(
+  story: PrepDeckStoryTemplate,
+): StoryDraft {
+  return buildPrepDeckElitePreview(story).polishedDraft;
 }

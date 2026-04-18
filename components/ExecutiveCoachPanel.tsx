@@ -208,7 +208,7 @@ function renderReply(
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-700">
                 Full reference set for this lane, with your saved stories first
-                and the full prep-deck library behind them.
+                and the full imported story-bank library behind them.
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -223,7 +223,7 @@ function renderReply(
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                    {story.source === "prep_deck" ? "Prep deck" : "Saved story"}
+                    {story.source === "prep_deck" ? "Story bank" : "Saved story"}
                   </span>
                   {story.metrics.map((metric) => (
                     <span

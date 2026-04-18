@@ -6,6 +6,7 @@ import {
   AMAZON_PREP_DECK_ROUTER,
   AMAZON_PREP_DECK_STORIES,
   AMAZON_PREP_DECK_QUESTIONS_TO_ASK,
+  buildPrepDeckElitePreview,
   buildPrepDeckStoryDraft,
   getPrepDeckRouteByCategory,
   getPrepDeckStoriesForCategory,
@@ -15,7 +16,7 @@ import {
 
 describe("amazon prep deck", () => {
   it("preserves the imported prep-deck structure", () => {
-    expect(AMAZON_PREP_DECK_STORIES).toHaveLength(10);
+    expect(AMAZON_PREP_DECK_STORIES).toHaveLength(19);
     expect(AMAZON_PREP_DECK_ROUTER).toHaveLength(16);
     expect(AMAZON_PREP_DECK_PANEL_PLAN).toHaveLength(12);
     expect(AMAZON_PREP_DECK_QUESTIONS_TO_ASK).toHaveLength(2);
@@ -30,19 +31,19 @@ describe("amazon prep deck", () => {
     const lpStories = getPrepDeckStoriesForFamily("lp");
     const functionalStories = getPrepDeckStoriesForFamily("functional");
 
-    expect(thinkBigRoute?.primaryStoryIds).toEqual(["story-7", "story-1"]);
+    expect(thinkBigRoute?.primaryStoryIds).toEqual(["story-16", "story-1", "story-19"]);
     expect(thinkBigStories.map((story) => story.id)).toEqual(
-      expect.arrayContaining(["story-1", "story-7", "story-10"]),
+      expect.arrayContaining(["story-1", "story-10", "story-16", "story-19"]),
     );
     expect(lpStories.length).toBeGreaterThanOrEqual(thinkBigStories.length);
     expect(functionalStories.length).toBeGreaterThan(0);
   });
 
   it("builds a reusable STAR draft from an imported deck story", () => {
-    const story = getPrepDeckStoryById("story-5");
+    const story = getPrepDeckStoryById("story-7");
 
     expect(story).not.toBeNull();
-    expect(story?.keyNumbers).toContain("Scanned bucket 10K to under 7K");
+    expect(story?.keyNumbers).toContain("Scanned bucket 10,000 to under 7,000");
 
     const draft = buildPrepDeckStoryDraft(story!);
 
@@ -52,5 +53,31 @@ describe("amazon prep deck", () => {
       expect.arrayContaining(["ownership", "bias-for-action"]),
     );
     expect(draft.action).toContain("I called RME directly");
+  });
+
+  it("keeps the story-bank follow-up prep available", () => {
+    const story = getPrepDeckStoryById("story-1");
+
+    expect(story).not.toBeNull();
+    expect(story?.followUpQuestions).toHaveLength(5);
+    expect(story?.whatChanged).toContain("Before this");
+  });
+
+  it("gives every imported story an elite-start path without losing score", () => {
+    for (const story of AMAZON_PREP_DECK_STORIES) {
+      const preview = buildPrepDeckElitePreview(story);
+      const combined = [
+        preview.polishedDraft.title,
+        preview.polishedDraft.situation,
+        preview.polishedDraft.task,
+        preview.polishedDraft.action,
+        preview.polishedDraft.result,
+        preview.polishedDraft.reflection,
+      ].join(" ");
+
+      expect(preview.polishedScore).toBeGreaterThanOrEqual(preview.sourceScore);
+      expect(preview.polishedDraft.categoryTags.length).toBeGreaterThan(0);
+      expect(combined).not.toMatch(/\[insert|\[state/i);
+    }
   });
 });

@@ -2357,7 +2357,10 @@ export function buildEliteStoryPolish(
   });
 
   const polishedReview = reviewStarStory(polishedDraft);
-  const scoreDelta = polishedReview.score - originalReview.score;
+  const keepOriginal = polishedReview.score < originalReview.score;
+  const bestDraft = keepOriginal ? safe : polishedDraft;
+  const bestReview = keepOriginal ? originalReview : polishedReview;
+  const scoreDelta = bestReview.score - originalReview.score;
   const adjustments: string[] = [];
 
   if (polishedDraft.situation !== safe.situation) {
@@ -2386,32 +2389,39 @@ export function buildEliteStoryPolish(
     );
   }
 
+  const bestDraftText = `${bestDraft.task} ${bestDraft.result} ${bestDraft.reflection}`;
+  const bestDraftStillHasPlaceholders = /\[insert|\[state/i.test(bestDraftText);
   const remainingGaps = [
-    ...polishedReview.misses,
+    ...bestReview.misses,
     ...draftSuggestion.missingPieces.filter(
       (item) =>
-        !/\[insert|\[state/i.test(
-          `${polishedDraft.task} ${polishedDraft.result} ${polishedDraft.reflection}`,
-        ) || !/\[insert|\[state/i.test(item),
+        bestDraftStillHasPlaceholders || !/\[insert|\[state/i.test(item),
     ),
   ];
   const headline =
-    scoreDelta > 0
+    keepOriginal
+      ? "The source version is already stronger than the rewrite, so the elite path keeps your original structure and focuses the next lift on proof, tradeoffs, and rehearsal."
+      : scoreDelta > 0
       ? `Elite polish lifts the story by ${scoreDelta} point${scoreDelta === 1 ? "" : "s"}, but it still needs real proof where the facts are thin.`
-      : polishedReview.score >= 85
+      : bestReview.score >= 85
         ? "This story is already strong. The polish pass mainly tightens the language so it sounds more senior out loud."
         : "The wording is tighter now, but the remaining gap is in the facts, proof, or tradeoff quality rather than the phrasing.";
 
   return {
-    draft: polishedDraft,
-    polishedReview,
+    draft: bestDraft,
+    polishedReview: bestReview,
     scoreDelta,
     headline,
-    adjustments: adjustments.length
-      ? adjustments
-      : [
-          "The story already had a solid structure, so the main lift now is better proof and more deliberate rehearsal.",
-        ],
+    adjustments: keepOriginal
+      ? [
+          "The original story already landed better than the rewrite, so the elite path preserved your strongest version instead of forcing a weaker edit.",
+          "The next gain is not more rewriting. It is sharper proof, clearer tradeoffs, and more deliberate rehearsal out loud.",
+        ]
+      : adjustments.length
+        ? adjustments
+        : [
+            "The story already had a solid structure, so the main lift now is better proof and more deliberate rehearsal.",
+          ],
     remainingGaps: [...new Set(remainingGaps)].slice(0, 5),
   };
 }
