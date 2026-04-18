@@ -62,6 +62,7 @@ declare global {
   interface Window {
     SpeechRecognition?: new () => SpeechRecognitionLike;
     webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitAudioContext?: typeof AudioContext;
   }
 }
 
@@ -245,6 +246,11 @@ export default function BarRaiserStudio({
     number | null
   >(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [waveformSamples, setWaveformSamples] = useState<number[]>(() =>
+    Array.from({ length: 28 }, () => 0.06),
+  );
+  const [silenceSeconds, setSilenceSeconds] = useState(0);
+  const [freezeDetected, setFreezeDetected] = useState(false);
   const [loggedReviewSignature, setLoggedReviewSignature] = useState<
     string | null
   >(null);
@@ -253,6 +259,11 @@ export default function BarRaiserStudio({
   const streamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const timerRef = useRef<number | null>(null);
+  const waveformFrameRef = useRef<number | null>(null);
+  const waveformLastUpdateRef = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const silenceStartedAtRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const finalTranscriptRef = useRef("");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
@@ -356,6 +367,11 @@ export default function BarRaiserStudio({
     isRecording,
     microphoneStatus,
   ]);
+  const freezeStatusLabel = freezeDetected
+    ? `Freeze detected at ${silenceSeconds}s`
+    : isRecording
+      ? `Live audio active${silenceSeconds > 0 ? ` • ${silenceSeconds}s quiet` : ""}`
+      : "Waiting for live take";
 
   useEffect(() => {
     const refreshMicrophoneStatus = async () => {
@@ -408,6 +424,13 @@ export default function BarRaiserStudio({
       }
 
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (waveformFrameRef.current) {
+        window.cancelAnimationFrame(waveformFrameRef.current);
+      }
+      analyserRef.current?.disconnect();
+      if (audioContextRef.current) {
+        void audioContextRef.current.close().catch(() => undefined);
+      }
     };
   }, [recordedAudioUrl]);
 
@@ -418,9 +441,110 @@ export default function BarRaiserStudio({
     }
   };
 
+  const resetWaveformMonitor = () => {
+    setWaveformSamples(Array.from({ length: 28 }, () => 0.06));
+    setSilenceSeconds(0);
+    setFreezeDetected(false);
+    silenceStartedAtRef.current = null;
+    waveformLastUpdateRef.current = 0;
+  };
+
+  const stopWaveformMonitor = () => {
+    if (waveformFrameRef.current) {
+      window.cancelAnimationFrame(waveformFrameRef.current);
+      waveformFrameRef.current = null;
+    }
+    analyserRef.current?.disconnect();
+    analyserRef.current = null;
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+    resetWaveformMonitor();
+  };
+
+  const startWaveformMonitor = (stream: MediaStream) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const AudioContextConstructor =
+      window.AudioContext ?? window.webkitAudioContext;
+
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    stopWaveformMonitor();
+
+    try {
+      const audioContext = new AudioContextConstructor();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.82;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const data = new Uint8Array(analyser.fftSize);
+
+      const tick = () => {
+        const activeAnalyser = analyserRef.current;
+
+        if (!activeAnalyser) {
+          return;
+        }
+
+        activeAnalyser.getByteTimeDomainData(data);
+        const amplitude =
+          data.reduce((sum, value) => sum + Math.abs(value - 128), 0) /
+          (data.length * 128);
+        const now = performance.now();
+
+        if (now - waveformLastUpdateRef.current >= 120) {
+          waveformLastUpdateRef.current = now;
+          const normalizedAmplitude = Math.min(
+            1,
+            Math.max(0.06, amplitude * 4.2),
+          );
+
+          setWaveformSamples((previous) => [
+            ...previous.slice(1),
+            normalizedAmplitude,
+          ]);
+
+          if (normalizedAmplitude > 0.13) {
+            silenceStartedAtRef.current = null;
+            setSilenceSeconds(0);
+            setFreezeDetected(false);
+          } else {
+            if (silenceStartedAtRef.current === null) {
+              silenceStartedAtRef.current = now;
+            }
+
+            const quietSeconds = Math.floor(
+              (now - silenceStartedAtRef.current) / 1000,
+            );
+            setSilenceSeconds(quietSeconds);
+            setFreezeDetected(now - silenceStartedAtRef.current >= 3000);
+          }
+        }
+
+        waveformFrameRef.current = window.requestAnimationFrame(tick);
+      };
+
+      waveformFrameRef.current = window.requestAnimationFrame(tick);
+    } catch {
+      resetWaveformMonitor();
+    }
+  };
+
   const stopMicrophone = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    stopWaveformMonitor();
   };
 
   const requestMicrophoneAccess = async () => {
@@ -463,6 +587,7 @@ export default function BarRaiserStudio({
     setAnswer("");
     setLastTakeDurationSeconds(null);
     finalTranscriptRef.current = "";
+    resetWaveformMonitor();
   };
 
   const handleQuestionChange = (questionId: string) => {
@@ -596,6 +721,7 @@ export default function BarRaiserStudio({
       }
       streamRef.current = stream;
       setMicrophoneStatus("granted");
+      startWaveformMonitor(stream);
 
       const recorderOptions = getSupportedRecorderOptions();
       const recorder = recorderOptions
@@ -674,6 +800,7 @@ export default function BarRaiserStudio({
     setRecordedAudioDownloadName(file.name || "bar-raiser-answer.webm");
     setLastTakeDurationSeconds(null);
     setElapsedSeconds(0);
+    stopWaveformMonitor();
     event.target.value = "";
   };
 
@@ -979,20 +1106,64 @@ export default function BarRaiserStudio({
             </div>
           </div>
 
+          <div
+            className={classNames(
+              "mt-4 rounded-[24px] border p-4 transition",
+              freezeDetected
+                ? "border-rose-200 bg-rose-50/80"
+                : "border-slate-200 bg-white/82",
+            )}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Audio-first capture
+                </p>
+                <h4 className="mt-1 text-lg font-semibold text-slate-950">
+                  Live waveform and freeze watch.
+                </h4>
+              </div>
+              <span
+                className={classNames(
+                  "rounded-full px-3 py-1 text-xs font-semibold",
+                  freezeDetected
+                    ? "bg-rose-100 text-rose-900"
+                    : isRecording
+                      ? "bg-emerald-100 text-emerald-900"
+                      : "bg-slate-100 text-slate-700",
+                )}
+              >
+                {freezeStatusLabel}
+              </span>
+            </div>
+            <div className="mt-4 flex h-24 items-end gap-1 rounded-[20px] bg-slate-950 px-3 py-4">
+              {waveformSamples.map((sample, index) => (
+                <span
+                  key={`wave-${index}`}
+                  className={classNames(
+                    "w-full rounded-full transition-[height,background-color]",
+                    freezeDetected
+                      ? "bg-rose-400"
+                      : isRecording
+                        ? "bg-cyan-300"
+                        : "bg-white/20",
+                  )}
+                  style={{
+                    height: `${Math.max(10, Math.round(sample * 100))}%`,
+                  }}
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {freezeDetected
+                ? "You stopped producing enough audio for three seconds or more. That is the kind of stall an interviewer will feel immediately."
+                : isRecording
+                  ? "The waveform is reading live mic energy so you can spot long pauses before they turn into a freeze."
+                  : "Press record to start the live monitor. If the bars stay flat while you are speaking, the browser or microphone is the issue."}
+            </p>
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isPreparingRecorder}
-              className={classNames(
-                "rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] disabled:cursor-not-allowed disabled:opacity-60",
-                isRecording
-                  ? "bg-rose-600 hover:bg-rose-700"
-                  : "bg-slate-950 hover:bg-slate-800",
-              )}
-            >
-              {primaryRecordingButtonLabel}
-            </button>
             <button
               type="button"
               onClick={() => audioInputRef.current?.click()}
@@ -1018,7 +1189,7 @@ export default function BarRaiserStudio({
             className="hidden"
           />
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                 Microphone
@@ -1043,6 +1214,23 @@ export default function BarRaiserStudio({
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
                 {selectedLens.label} pressure
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-slate-200 bg-white/80 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Freeze watch
+              </p>
+              <p
+                className={classNames(
+                  "mt-2 text-sm font-semibold",
+                  freezeDetected ? "text-rose-700" : "text-slate-950",
+                )}
+              >
+                {freezeDetected
+                  ? `Triggered at ${silenceSeconds}s`
+                  : silenceSeconds > 0
+                    ? `${silenceSeconds}s quiet`
+                    : "No freeze detected"}
               </p>
             </div>
           </div>

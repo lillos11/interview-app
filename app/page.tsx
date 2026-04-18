@@ -1,6 +1,13 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type JSX,
+} from "react";
 
 import {
   AMAZON_PREP_DECK_INTERVIEW_DAY_REMINDERS,
@@ -24,12 +31,15 @@ import {
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildPrepMomentumDashboard,
+  buildPrepTrendSeries,
+  buildPromptAdherenceMatrix,
   buildReadinessForecast,
   buildStoryScorecardSuggestions,
   buildStoryCalibrationReport,
   buildStoryPivotPack,
   buildStoryPressureTest,
   buildStorySaturationReport,
+  buildTextXRay,
   buildPitchPreview,
   buildStarCoachTips,
   coerceInterviewProgress,
@@ -74,10 +84,12 @@ import {
   type InterviewPrepProgress,
   type InterviewQuestion,
   type InterviewerLensId,
+  type PrepTrendPoint,
   type InterviewSourceFamily,
   type PrepTabTarget,
   type StoryPivotNode,
   type StoryDraft,
+  type TextXRayReport,
 } from "@/lib/interview";
 import BarRaiserStudio from "@/components/BarRaiserStudio";
 import ExecutiveCoachPanel from "@/components/ExecutiveCoachPanel";
@@ -109,6 +121,23 @@ type CareerProfileField =
   | "currentTotalComp"
   | "targetTotalComp";
 
+interface EnduranceSessionStep {
+  id: string;
+  roundId: string;
+  roundTitle: string;
+  lensId: InterviewerLensId;
+  lensLabel: string;
+  questionId: string;
+  questionTitle: string;
+  categoryId: string;
+  categoryLabel: string;
+}
+
+interface EnduranceSessionState {
+  queue: EnduranceSessionStep[];
+  completed: EnduranceSessionStep[];
+}
+
 const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "cockpit", label: "Cockpit" },
   { id: "star_lab", label: "STAR Lab" },
@@ -116,11 +145,32 @@ const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "bar_raiser", label: "Bar Raiser" },
   { id: "executive_coach", label: "Exec Coach" },
   { id: "frameworks", label: "Question Bank" },
+  { id: "ops_lab", label: "Ops Lab" },
   { id: "game_day", label: "Game Day" },
 ];
 
 const drillLengthOptions = [3, 5, 8] as const;
 const amazonFamilies: InterviewSourceFamily[] = ["lp", "functional"];
+
+function createDefaultBaselinePrompt(): string {
+  return [
+    "Use only the provided source bank for interview questions.",
+    "Be brutally honest, specific, and high-bar in every review.",
+    "Never invent metrics, dates, or story facts.",
+    "Flag placeholders, vague chronology, and team blur as defects.",
+    "When capability is missing, fail gracefully and explain the constraint instead of hallucinating.",
+  ].join(" ");
+}
+
+function createDefaultCandidatePrompt(): string {
+  return [
+    "Use only the provided source bank and canonical story bank.",
+    "Be brutally honest and generate hostile Bar Raiser follow-ups.",
+    "Never invent facts, never leave placeholder metrics, and force exact dates and verifiable numbers.",
+    "Explain graceful fallbacks when confidence is low.",
+    "Block vague answers, team blur, and unsupported claims with a repair plan.",
+  ].join(" ");
+}
 
 function createEmptyStoryWriterInput() {
   return {
@@ -131,6 +181,14 @@ function createEmptyStoryWriterInput() {
     result: "",
     lesson: "",
   };
+}
+
+function createDefaultXRayText(): string {
+  return [
+    "Recently I helped the team get faster and things improved a lot.",
+    "We worked hard and performance went up by [X]% after a major push.",
+    "Basically we were aligned and everyone felt better afterward.",
+  ].join(" ");
 }
 
 const ratingMeta: Record<
@@ -178,6 +236,96 @@ function classNames(
   ...values: Array<string | false | null | undefined>
 ): string {
   return values.filter(Boolean).join(" ");
+}
+
+function buildStorySourceText(story: StoryDraft): string {
+  return [
+    story.title,
+    story.situation,
+    story.task,
+    story.action,
+    story.result,
+    story.reflection,
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function renderXRayCanvas(text: string, report: TextXRayReport) {
+  if (!text.trim()) {
+    return (
+      <p className="text-sm leading-7 text-slate-500">
+        Paste a prompt, answer, or story snippet and the X-ray view will box the
+        exact leak points inline.
+      </p>
+    );
+  }
+
+  const windows = [...report.windows]
+    .sort((left, right) => left.start - right.start)
+    .filter((window, index, items) =>
+      index === 0 ? true : window.start >= items[index - 1]!.end,
+    );
+  const segments: Array<string | JSX.Element> = [];
+  let cursor = 0;
+
+  for (const window of windows) {
+    if (window.start > cursor) {
+      segments.push(text.slice(cursor, window.start));
+    }
+
+    segments.push(
+      <span
+        key={window.id}
+        className={classNames(
+          "mx-0.5 inline rounded-lg border px-1.5 py-0.5 font-semibold",
+          window.severity === "critical"
+            ? "border-rose-400 bg-rose-100 text-rose-950"
+            : "border-amber-400 bg-amber-100 text-amber-950",
+        )}
+        title={`${window.label}: ${window.reason}`}
+      >
+        {text.slice(window.start, window.end)}
+      </span>,
+    );
+    cursor = window.end;
+  }
+
+  if (cursor < text.length) {
+    segments.push(text.slice(cursor));
+  }
+
+  return <p className="text-sm leading-7 text-slate-900">{segments}</p>;
+}
+
+function renderTrendPath(
+  points: PrepTrendPoint[],
+  key: "score" | "packRate",
+  width: number,
+  height: number,
+): string {
+  const series = points
+    .map((point) => point[key])
+    .filter((value): value is number => value !== null);
+
+  if (!series.length) {
+    return "";
+  }
+
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const range = Math.max(1, max - min);
+
+  return points
+    .map((point, index) => {
+      const value = point[key] ?? min;
+      const x =
+        points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+      const y = height - ((value - min) / range) * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
 }
 
 function PrepDeckStoryCard({
@@ -521,6 +669,15 @@ export default function HomePage() {
   const [barRaiserQuestionId, setBarRaiserQuestionId] = useState<string | null>(
     null,
   );
+  const [opsBaselinePrompt, setOpsBaselinePrompt] = useState(
+    createDefaultBaselinePrompt,
+  );
+  const [opsCandidatePrompt, setOpsCandidatePrompt] = useState(
+    createDefaultCandidatePrompt,
+  );
+  const [opsXRayText, setOpsXRayText] = useState(createDefaultXRayText);
+  const [enduranceSession, setEnduranceSession] =
+    useState<EnduranceSessionState | null>(null);
   const starLabBuilderRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -596,6 +753,7 @@ export default function HomePage() {
     setDrillRevealed(false);
     setDrillRating(null);
     setDrillFinished(false);
+    setEnduranceSession(null);
   };
 
   const selectedFamilyCategories = useMemo(
@@ -742,6 +900,10 @@ export default function HomePage() {
     () => buildReadinessForecast(progress),
     [progress],
   );
+  const prepTrendSeries = useMemo(
+    () => buildPrepTrendSeries(progress),
+    [progress],
+  );
   const storySaturationReport = useMemo(
     () => buildStorySaturationReport(progress, selectedFamily),
     [progress, selectedFamily],
@@ -749,6 +911,14 @@ export default function HomePage() {
   const storyPivotPack = useMemo(
     () => buildStoryPivotPack(storyDraft),
     [storyDraft],
+  );
+  const promptAdherenceMatrix = useMemo(
+    () => buildPromptAdherenceMatrix(opsBaselinePrompt, opsCandidatePrompt),
+    [opsBaselinePrompt, opsCandidatePrompt],
+  );
+  const opsXRayReport = useMemo(
+    () => buildTextXRay(opsXRayText),
+    [opsXRayText],
   );
 
   const drillHasStarted = drillQuestions.length > 0;
@@ -993,7 +1163,65 @@ export default function HomePage() {
     setDrillRevealed(false);
     setDrillRating(null);
     setDrillFinished(false);
+    setEnduranceSession(null);
     setActiveTab("drills");
+  };
+
+  const startEnduranceLoopSession = () => {
+    const queue = enduranceLoopPlan.rounds.flatMap((round, roundIndex) =>
+      round.questionIds
+        .map((questionId, questionIndex) => {
+          const question = getInterviewQuestionById(questionId);
+
+          if (!question) {
+            return null;
+          }
+
+          return {
+            id: `${round.id}-${question.id}-${roundIndex}-${questionIndex}`,
+            roundId: round.id,
+            roundTitle: round.title,
+            lensId: round.lensId,
+            lensLabel: round.lensLabel,
+            questionId: question.id,
+            questionTitle: question.title,
+            categoryId: question.sourceCategoryId,
+            categoryLabel: question.sourceCategoryLabel,
+          } satisfies EnduranceSessionStep;
+        })
+        .filter((step): step is EnduranceSessionStep => step !== null),
+    );
+
+    setEnduranceSession({
+      queue,
+      completed: [],
+    });
+  };
+
+  const clearEnduranceLoopSession = () => {
+    setEnduranceSession(null);
+  };
+
+  const advanceEnduranceLoopSession = () => {
+    setEnduranceSession((previous) => {
+      if (!previous?.queue.length) {
+        return previous;
+      }
+
+      const [current, ...rest] = previous.queue;
+
+      return {
+        queue: rest,
+        completed: [...previous.completed, current],
+      };
+    });
+  };
+
+  const loadCurrentStoryIntoXRay = () => {
+    const storySource = buildStorySourceText(storyDraft);
+
+    setOpsXRayText(storySource || createDefaultXRayText());
+    setActiveTab("ops_lab");
   };
 
   const revealCurrentDrill = () => {
@@ -4392,6 +4620,188 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-950 p-5 text-white">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-200">
+                    Frontend state governor
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold">
+                    Pop categories off the stack as you clear them.
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-white/78">
+                    This session queue exists so the endurance loop cannot quietly
+                    drift back to the same category while you are under pressure.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={startEnduranceLoopSession}
+                    disabled={!enduranceLoopPlan.totalQuestions}
+                    className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {enduranceSession ? "Restart endurance loop" : "Start endurance loop"}
+                  </button>
+                  {enduranceSession ? (
+                    <button
+                      type="button"
+                      onClick={clearEnduranceLoopSession}
+                      className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Clear session
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {enduranceSession ? (
+                <div className="mt-4 grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
+                      Current stack state
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <p className="text-xs uppercase tracking-[0.14em] text-white/50">
+                          Remaining
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold">
+                          {enduranceSession.queue.length}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <p className="text-xs uppercase tracking-[0.14em] text-white/50">
+                          Cleared
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold">
+                          {enduranceSession.completed.length}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <p className="text-xs uppercase tracking-[0.14em] text-white/50">
+                          Categories left
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold">
+                          {new Set(
+                            enduranceSession.queue.map((step) => step.categoryId),
+                          ).size}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
+                        Active prompt
+                      </p>
+                      {enduranceSession.queue[0] ? (
+                        <>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-rose-500/20 px-2.5 py-1 text-xs font-semibold text-rose-100">
+                              {enduranceSession.queue[0].lensLabel}
+                            </span>
+                            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
+                              {enduranceSession.queue[0].categoryLabel}
+                            </span>
+                          </div>
+                          <p className="mt-3 text-lg font-semibold">
+                            {enduranceSession.queue[0].roundTitle}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-white/82">
+                            {enduranceSession.queue[0].questionTitle}
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openQuestionInBarRaiser(
+                                  enduranceSession.queue[0]!.questionId,
+                                  enduranceSession.queue[0]!.lensId,
+                                )
+                              }
+                              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
+                            >
+                              Launch in Bar Raiser
+                            </button>
+                            <button
+                              type="button"
+                              onClick={advanceEnduranceLoopSession}
+                              className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
+                            >
+                              Mark cleared and pop category
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-3 rounded-2xl bg-emerald-500/15 p-4 text-sm leading-6 text-emerald-100">
+                          The stack is empty. You cleared the full endurance queue
+                          without repeating categories.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
+                      Remaining category stack
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {enduranceSession.queue.length ? (
+                        enduranceSession.queue.map((step, index) => (
+                          <span
+                            key={step.id}
+                            className={classNames(
+                              "rounded-full px-3 py-1 text-xs font-semibold",
+                              index === 0
+                                ? "bg-white text-slate-950"
+                                : "bg-white/10 text-white/80",
+                            )}
+                          >
+                            {index + 1}. {step.categoryLabel}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-100">
+                          Queue empty
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
+                      Cleared prompts
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {enduranceSession.completed.length ? (
+                        enduranceSession.completed.map((step) => (
+                          <div
+                            key={step.id}
+                            className="rounded-2xl border border-white/10 bg-black/20 p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100">
+                                Cleared
+                              </span>
+                              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                                {step.categoryLabel}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-white/82">
+                              {step.roundTitle}: {step.questionTitle}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-white/15 p-4 text-sm leading-6 text-white/60">
+                          Nothing cleared yet. Start the first prompt and pop it
+                          off the stack only after you finish the rep.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </article>
 
           {drillHasStarted && currentDrillQuestion ? (
@@ -4896,6 +5306,454 @@ export default function HomePage() {
                 </div>
               </div>
             </article>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === "ops_lab" ? (
+        <section className="space-y-4">
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Interview operations lab
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  Evaluate prompt changes, inspect token failures, and watch the
+                  prep trajectory like a war room.
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+                  This is the admin-grade layer. It is where you compare system
+                  instructions head to head, isolate exact failure tokens, and
+                  watch whether your prep signal is actually compounding.
+                </p>
+              </div>
+              <div
+                className={classNames(
+                  "rounded-[22px] border px-4 py-3 text-sm font-semibold",
+                  promptAdherenceMatrix.autoReject
+                    ? "border-rose-200 bg-rose-50 text-rose-950"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-950",
+                )}
+              >
+                {promptAdherenceMatrix.autoReject
+                  ? "Candidate prompt auto-rejected"
+                  : "Candidate prompt clears deployment gate"}
+              </div>
+            </div>
+          </article>
+
+          <div className="grid gap-4 xl:grid-cols-[1.04fr_0.96fr]">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Head-to-head adherence matrix
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                    Ship only prompt updates that hold the bar.
+                  </h3>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {promptAdherenceMatrix.controlBatchSize} probes
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Baseline instructions
+                  </span>
+                  <textarea
+                    rows={8}
+                    value={opsBaselinePrompt}
+                    onChange={(event) => setOpsBaselinePrompt(event.target.value)}
+                    placeholder="Current production prompt"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Candidate instructions
+                  </span>
+                  <textarea
+                    rows={8}
+                    value={opsCandidatePrompt}
+                    onChange={(event) => setOpsCandidatePrompt(event.target.value)}
+                    placeholder="Proposed prompt update"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Baseline
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {promptAdherenceMatrix.baselineScore}%
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Candidate
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">
+                    {promptAdherenceMatrix.candidateScore}%
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Delta
+                  </p>
+                  <p
+                    className={classNames(
+                      "mt-2 text-3xl font-semibold",
+                      promptAdherenceMatrix.delta >= 0
+                        ? "text-emerald-700"
+                        : "text-rose-700",
+                    )}
+                  >
+                    {promptAdherenceMatrix.delta >= 0 ? "+" : ""}
+                    {promptAdherenceMatrix.delta}%
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Gate
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">
+                    {promptAdherenceMatrix.autoReject ? "Reject" : "Allow"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-950 p-4 text-white">
+                <p className="text-sm leading-7 text-white/86">
+                  {promptAdherenceMatrix.summary}
+                </p>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {promptAdherenceMatrix.results.map((result) => (
+                  <div
+                    key={result.probeId}
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">
+                          {result.title}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-700">
+                          {result.scenario}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          Base {result.baselineScore}%
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          Candidate {result.candidateScore}%
+                        </span>
+                        <span
+                          className={classNames(
+                            "rounded-full px-2.5 py-1 text-xs font-semibold",
+                            result.delta >= 0
+                              ? "bg-emerald-100 text-emerald-900"
+                              : "bg-rose-100 text-rose-900",
+                          )}
+                        >
+                          {result.delta >= 0 ? "+" : ""}
+                          {result.delta}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                      <div className="rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          Matched constraints
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {result.matchedSignals.length ? (
+                            result.matchedSignals.map((signal) => (
+                              <span
+                                key={`${result.probeId}-${signal}`}
+                                className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
+                              >
+                                {signal}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-sm text-slate-500">
+                              Nothing strong matched here.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          Missed constraints
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {result.missedSignals.length ? (
+                            result.missedSignals.map((signal) => (
+                              <span
+                                key={`${result.probeId}-miss-${signal}`}
+                                className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-900"
+                              >
+                                {signal}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-sm text-slate-500">
+                              No obvious misses in this probe.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <div className="space-y-4">
+              <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Diagnostic derendering
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                      Token-level X-ray for failure analysis.
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      Box the exact words where precision, ownership, or
+                      chronology starts leaking.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={loadCurrentStoryIntoXRay}
+                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                    >
+                      Load current story
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOpsXRayText(createDefaultXRayText())}
+                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                    >
+                      Load sample
+                    </button>
+                  </div>
+                </div>
+
+                <label className="mt-4 grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    X-ray input
+                  </span>
+                  <textarea
+                    rows={8}
+                    value={opsXRayText}
+                    onChange={(event) => setOpsXRayText(event.target.value)}
+                    placeholder="Paste a story section, prompt, or failed answer here."
+                  />
+                </label>
+
+                <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    X-ray canvas
+                  </p>
+                  <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+                    {renderXRayCanvas(opsXRayText, opsXRayReport)}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {opsXRayReport.windows.length ? (
+                    opsXRayReport.windows.map((window) => (
+                      <div
+                        key={window.id}
+                        className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={classNames(
+                              "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                              window.severity === "critical"
+                                ? "bg-rose-100 text-rose-900"
+                                : "bg-amber-100 text-amber-900",
+                            )}
+                          >
+                            {window.severity}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                            {window.label}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                            token {window.start}-{window.end}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-slate-950">
+                          {window.text}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {window.reason}
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          Repair move: {window.repairMove}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                      No obvious token-level defects were detected in this text.
+                    </div>
+                  )}
+                </div>
+              </article>
+
+              <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Predictive prep terminal
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-950">
+                      Fourteen-day trailing signal score and pack rate.
+                    </h3>
+                  </div>
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                    14-day view
+                  </span>
+                </div>
+
+                <div className="mt-4 rounded-[24px] bg-slate-950 p-4 text-white">
+                  {prepTrendSeries.some(
+                    (point) => point.score !== null || point.packRate !== null,
+                  ) ? (
+                    <svg
+                      viewBox="0 0 440 150"
+                      className="h-[180px] w-full"
+                      role="img"
+                      aria-label="Prep signal chart"
+                    >
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <line
+                          key={`grid-${index}`}
+                          x1="0"
+                          x2="440"
+                          y1={20 + index * 25}
+                          y2={20 + index * 25}
+                          stroke="rgba(255,255,255,0.08)"
+                          strokeWidth="1"
+                        />
+                      ))}
+                      <path
+                        d={renderTrendPath(prepTrendSeries, "score", 440, 120)}
+                        fill="none"
+                        stroke="#f87171"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d={renderTrendPath(prepTrendSeries, "packRate", 440, 120)}
+                        fill="none"
+                        stroke="#f8fafc"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray="6 4"
+                      />
+                    </svg>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/68">
+                      Log a few Bar Raiser reviews and the trailing score and pack
+                      rate curves will appear here.
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
+                    <span className="rounded-full bg-rose-500/20 px-3 py-1 text-rose-100">
+                      Red line: harsh review score
+                    </span>
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-white/80">
+                      White dashed line: pack rate
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      Latest score
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-950">
+                      {prepTrendSeries
+                        .slice()
+                        .reverse()
+                        .find((point) => point.score !== null)?.score ?? "--"}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      Latest pack rate
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-950">
+                      {prepTrendSeries
+                        .slice()
+                        .reverse()
+                        .find((point) => point.packRate !== null)?.packRate ?? "--"}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      Memory decay watch
+                    </p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">
+                      {prepTrendSeries.filter((point) => point.score !== null)
+                        .length < 3
+                        ? "Too little data yet. Keep logging reps."
+                        : "Use the chart to spot flatlining or slipping signal before the loop."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {prepTrendSeries.slice(-6).map((point) => (
+                    <div
+                      key={point.day}
+                      className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-950">
+                          {point.label}
+                        </p>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {point.day}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Score</span>
+                          <span className="font-semibold text-slate-950">
+                            {point.score ?? "--"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Pack rate</span>
+                          <span className="font-semibold text-slate-950">
+                            {point.packRate ?? "--"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
           </div>
         </section>
       ) : null}

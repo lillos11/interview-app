@@ -7,11 +7,14 @@ import {
   buildEliteStoryPolish,
   buildGameFilmBreakdown,
   buildPrepMomentumDashboard,
+  buildPrepTrendSeries,
+  buildPromptAdherenceMatrix,
   buildReadinessForecast,
   buildStoryCalibrationReport,
   buildStoryPivotPack,
   buildStoryScorecardSuggestions,
   buildStorySaturationReport,
+  buildTextXRay,
   buildCurveballPack,
   buildStoryPressureTest,
   coerceInterviewProgress,
@@ -723,6 +726,84 @@ describe("interview prep helpers", () => {
     expect(forecast.blockers.length).toBeGreaterThan(0);
   });
 
+  it("scores prompt updates head to head and auto-rejects weaker candidates", () => {
+    const strongBaseline = [
+      "Use only the provided source bank for interview questions.",
+      "Be brutally honest.",
+      "Never invent metrics, dates, or facts.",
+      "Fail gracefully instead of hallucinating.",
+    ].join(" ");
+    const weakCandidate = "Be helpful and conversational.";
+    const strongerCandidate = [
+      "Use only the provided source bank and canonical story bank.",
+      "Be brutally honest and block vague answers.",
+      "Never invent facts or leave placeholder metrics.",
+      "Fail gracefully when confidence is low instead of hallucinating.",
+    ].join(" ");
+
+    const rejected = buildPromptAdherenceMatrix(strongBaseline, weakCandidate);
+    const accepted = buildPromptAdherenceMatrix(weakCandidate, strongerCandidate);
+
+    expect(rejected.autoReject).toBe(true);
+    expect(rejected.delta).toBeLessThan(0);
+    expect(accepted.autoReject).toBe(false);
+    expect(accepted.candidateScore).toBeGreaterThanOrEqual(
+      accepted.baselineScore,
+    );
+  });
+
+  it("builds token-level x-ray windows with positions and repair moves", () => {
+    const report = buildTextXRay(
+      "Recently I helped the team get faster and performance improved by [X]% a lot.",
+    );
+
+    expect(report.windows.length).toBeGreaterThan(0);
+    expect(
+      report.windows.some(
+        (window) =>
+          window.text === "Recently" &&
+          window.start >= 0 &&
+          window.end > window.start,
+      ),
+    ).toBe(true);
+    expect(
+      report.windows.some(
+        (window) =>
+          window.label === "Placeholder leak" &&
+          window.severity === "critical" &&
+          window.end > window.start,
+      ),
+    ).toBe(true);
+  });
+
+  it("builds a trailing prep trend series from harsh review history", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "deliver-results",
+    )!;
+    const now = new Date();
+    const firstDay = new Date(now.getTime() - 2 * 86_400_000);
+    const secondDay = new Date(now.getTime() - 1 * 86_400_000);
+    let progress = createInitialInterviewProgress(firstDay);
+
+    const firstReview = reviewInterviewAnswer(
+      question,
+      "I recovered the miss, reset the cadence, and improved throughput by 12 percent.",
+    );
+    const secondReview = reviewInterviewAnswer(
+      question,
+      "I recovered the miss, reset the cadence, and improved throughput by 18 percent with tighter ownership.",
+    );
+
+    progress = recordBarRaiserReview(progress, question, firstReview, 90, firstDay);
+    progress = recordBarRaiserReview(progress, question, secondReview, 100, secondDay);
+
+    const series = buildPrepTrendSeries(progress, 5);
+
+    expect(series).toHaveLength(5);
+    expect(series.some((point) => point.score !== null)).toBe(true);
+    expect(series.some((point) => point.packRate !== null)).toBe(true);
+  });
+
   it("reports story saturation and critical signal gaps for the current family", () => {
     const now = new Date("2026-03-10T12:00:00.000Z");
     let progress = createInitialInterviewProgress(now);
@@ -792,6 +873,13 @@ describe("interview prep helpers", () => {
       INTERVIEW_QUESTIONS.filter((question) => question.sourceFamily === "lp"),
       createInitialInterviewProgress(new Date("2026-03-10T12:00:00.000Z")),
     );
+    const categoryIds = plan.rounds.flatMap((round) =>
+      round.questionIds.map(
+        (questionId) =>
+          INTERVIEW_QUESTIONS.find((question) => question.id === questionId)
+            ?.sourceCategoryId ?? questionId,
+      ),
+    );
 
     expect(plan.totalRounds).toBe(4);
     expect(plan.totalMinutes).toBe(180);
@@ -801,6 +889,7 @@ describe("interview prep helpers", () => {
     expect(plan.rounds.some((round) => round.lensId === "tech_lead")).toBe(
       true,
     );
+    expect(new Set(categoryIds).size).toBe(categoryIds.length);
   });
 
   it("builds a game-film breakdown with timestamped delivery defects", () => {

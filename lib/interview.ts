@@ -72,6 +72,7 @@ export type PrepTabTarget =
   | "bar_raiser"
   | "executive_coach"
   | "frameworks"
+  | "ops_lab"
   | "game_day";
 
 export interface InterviewQuestion {
@@ -544,6 +545,58 @@ export interface GameFilmBreakdown {
   weakVerbHits: number;
   summary: string;
   events: GameFilmEvent[];
+}
+
+export interface PromptEvalProbe {
+  id: string;
+  title: string;
+  scenario: string;
+  requiredSignals: string[][];
+  negativeSignals: string[][];
+}
+
+export interface PromptEvalProbeResult {
+  probeId: string;
+  title: string;
+  scenario: string;
+  baselineScore: number;
+  candidateScore: number;
+  delta: number;
+  matchedSignals: string[];
+  missedSignals: string[];
+}
+
+export interface PromptAdherenceMatrix {
+  controlBatchSize: number;
+  baselineScore: number;
+  candidateScore: number;
+  delta: number;
+  autoReject: boolean;
+  summary: string;
+  results: PromptEvalProbeResult[];
+}
+
+export interface XRayWindow {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  label: string;
+  severity: "critical" | "watch";
+  reason: string;
+  repairMove: string;
+}
+
+export interface TextXRayReport {
+  summary: string;
+  windows: XRayWindow[];
+}
+
+export interface PrepTrendPoint {
+  day: string;
+  label: string;
+  score: number | null;
+  packRate: number | null;
 }
 
 export interface InterviewPrepProgress {
@@ -1422,6 +1475,125 @@ function formatMoney(value: number | null): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+const PROMPT_EVAL_FAMILIES = [
+  {
+    title: "Source-bank discipline",
+    requiredSignals: [
+      ["source bank", "provided questions", "canonical bank"],
+      ["only", "strictly", "do not invent"],
+    ],
+    negativeSignals: [["random", "made-up", "invented"]],
+  },
+  {
+    title: "Brutal honesty",
+    requiredSignals: [
+      ["brutal", "honest", "hard truth"],
+      ["repair plan", "exactly", "specific"],
+    ],
+    negativeSignals: [["generic praise", "soften", "sugarcoat"]],
+  },
+  {
+    title: "Metric rigor",
+    requiredSignals: [
+      ["exact metric", "real number", "verifiable"],
+      ["no placeholder", "replace", "anti-placeholder"],
+    ],
+    negativeSignals: [["x%", "[x]", "[metric]"]],
+  },
+  {
+    title: "Chronology rigor",
+    requiredSignals: [
+      ["exact date", "month", "quarter", "time anchor"],
+      ["no vague", "recently", "ambiguous"],
+    ],
+    negativeSignals: [["recently", "a while back", "some time ago"]],
+  },
+  {
+    title: "Hostile follow-up pressure",
+    requiredSignals: [
+      ["hostile follow-up", "skeptical", "bar raiser"],
+      ["dive deep", "tradeoff", "push back"],
+    ],
+    negativeSignals: [["friendly", "easy", "softball"]],
+  },
+  {
+    title: "Graceful degradation",
+    requiredSignals: [
+      ["if unsupported", "fallback", "graceful"],
+      ["explain the constraint", "do not hallucinate", "confidence threshold"],
+    ],
+    negativeSignals: [["guess", "hallucinate", "make up"]],
+  },
+  {
+    title: "Audio-first rigor",
+    requiredSignals: [
+      ["stream", "chunks", "real-time"],
+      ["freeze", "silence", "waveform"],
+    ],
+    negativeSignals: [["wait until stop", "batch only"]],
+  },
+  {
+    title: "Negative constraints",
+    requiredSignals: [
+      ["never", "must not", "block"],
+      ["negative constraint", "referee", "guardrail"],
+    ],
+    negativeSignals: [["maybe", "probably", "optional"]],
+  },
+  {
+    title: "Evaluation discipline",
+    requiredSignals: [
+      ["head-to-head", "control batch", "55"],
+      ["auto-reject", "mathematically", "adherence score"],
+    ],
+    negativeSignals: [["vibes", "manual only"]],
+  },
+  {
+    title: "Persistent correction memory",
+    requiredSignals: [
+      ["correction ledger", "memory", "persistent"],
+      ["never repeat", "user correction", "vector"],
+    ],
+    negativeSignals: [["forget", "stateless"]],
+  },
+] as const;
+
+const PROMPT_EVAL_CONTROL_BATCH: readonly PromptEvalProbe[] = Array.from(
+  { length: 60 },
+  (_, index) => {
+    const family = PROMPT_EVAL_FAMILIES[index % PROMPT_EVAL_FAMILIES.length];
+    const seededQuestion = INTERVIEW_QUESTIONS[index % INTERVIEW_QUESTIONS.length];
+
+    return {
+      id: `probe-${index + 1}`,
+      title: family.title,
+      scenario: `${seededQuestion.sourceCategoryLabel}: ${seededQuestion.prompt}`,
+      requiredSignals: family.requiredSignals.map((group) => [...group]),
+      negativeSignals: family.negativeSignals.map((group) => [...group]),
+    } satisfies PromptEvalProbe;
+  },
+);
+
+function countSignalGroupMatches(
+  text: string,
+  groups: readonly string[][],
+): { matched: string[]; missed: string[]; score: number } {
+  const matched: string[] = [];
+  const missed: string[] = [];
+
+  for (const group of groups) {
+    const hit = group.find((signal) => text.includes(signal));
+    if (hit) {
+      matched.push(hit);
+    } else {
+      missed.push(group[0] ?? "missing signal");
+    }
+  }
+
+  const score = groups.length ? matched.length / groups.length : 1;
+  return { matched, missed, score };
 }
 
 function inferLevelNumber(levelText: string): number {
@@ -4503,6 +4675,226 @@ export function buildStoryPivotPack(
   };
 }
 
+export function buildPromptAdherenceMatrix(
+  baselinePrompt: string,
+  candidatePrompt: string,
+): PromptAdherenceMatrix {
+  const baselineText = baselinePrompt.toLowerCase();
+  const candidateText = candidatePrompt.toLowerCase();
+
+  const results = PROMPT_EVAL_CONTROL_BATCH.map((probe) => {
+    const baselineRequired = countSignalGroupMatches(
+      baselineText,
+      probe.requiredSignals,
+    );
+    const candidateRequired = countSignalGroupMatches(
+      candidateText,
+      probe.requiredSignals,
+    );
+    const baselineNegative = countSignalGroupMatches(
+      baselineText,
+      probe.negativeSignals,
+    );
+    const candidateNegative = countSignalGroupMatches(
+      candidateText,
+      probe.negativeSignals,
+    );
+    const baselineScore = clampScore(
+      baselineRequired.score * 80 + baselineNegative.score * 20,
+    );
+    const candidateScore = clampScore(
+      candidateRequired.score * 80 + candidateNegative.score * 20,
+    );
+
+    return {
+      probeId: probe.id,
+      title: probe.title,
+      scenario: probe.scenario,
+      baselineScore,
+      candidateScore,
+      delta: candidateScore - baselineScore,
+      matchedSignals: [...candidateRequired.matched, ...candidateNegative.matched],
+      missedSignals: [...candidateRequired.missed, ...candidateNegative.missed],
+    } satisfies PromptEvalProbeResult;
+  }).sort((left, right) => left.candidateScore - right.candidateScore);
+
+  const baselineScore = clampScore(
+    results.reduce((sum, result) => sum + result.baselineScore, 0) /
+      results.length,
+  );
+  const candidateScore = clampScore(
+    results.reduce((sum, result) => sum + result.candidateScore, 0) /
+      results.length,
+  );
+  const delta = candidateScore - baselineScore;
+
+  return {
+    controlBatchSize: results.length,
+    baselineScore,
+    candidateScore,
+    delta,
+    autoReject: delta < 0,
+    summary:
+      delta >= 0
+        ? `Candidate instructions hold at or above the current adherence bar across ${results.length} control probes.`
+        : `Candidate instructions lose adherence against the current baseline and should be rejected until the missed constraints are patched.`,
+    results: results.slice(0, 12),
+  };
+}
+
+export function buildTextXRay(text: string): TextXRayReport {
+  const normalized = normalizeStoryField(text);
+  const patternSpecs = [
+    {
+      pattern: PLACEHOLDER_METRIC_PATTERN,
+      label: "Placeholder leak",
+      severity: "critical" as const,
+      reason:
+        "This token still looks scaffolded or fabricated. It will collapse under follow-up.",
+      repairMove:
+        "Replace it with the exact date, metric, delta, or scope marker before using the output.",
+    },
+    {
+      pattern: AMBIGUOUS_DATE_PATTERN,
+      label: "Chronology blur",
+      severity: "critical" as const,
+      reason:
+        "The timing is too vague for a senior interviewer to trust without pushing back.",
+      repairMove:
+        "Swap the fuzzy phrase for the exact month, quarter, peak window, or named event.",
+    },
+    {
+      pattern: WEAK_VERB_PATTERN,
+      label: "Ownership leak",
+      severity: "watch" as const,
+      reason:
+        "This wording softens agency and makes your contribution easier to question.",
+      repairMove:
+        "Replace it with the decision or intervention you personally drove.",
+    },
+    {
+      pattern: FILLER_PATTERN,
+      label: "Filler token",
+      severity: "watch" as const,
+      reason:
+        "This weakens confidence and wastes time without adding signal.",
+      repairMove:
+        "Cut the filler and keep the sentence moving toward the stake, action, or proof.",
+    },
+    {
+      pattern: TEAM_PATTERN,
+      label: "Team blur",
+      severity: "watch" as const,
+      reason:
+        "Team language is not wrong, but it becomes dangerous when it hides your direct ownership.",
+      repairMove:
+        'Pair it with "I decided", "I changed", or "I escalated" so the ownership survives.',
+    },
+  ];
+
+  const windows = patternSpecs.flatMap((spec, specIndex) => {
+    const matches = [...normalized.matchAll(new RegExp(spec.pattern.source, spec.pattern.flags))];
+    return matches.map((match, matchIndex) => ({
+      id: `xray-${specIndex}-${matchIndex}-${match.index ?? 0}`,
+      start: match.index ?? 0,
+      end: (match.index ?? 0) + match[0].length,
+      text: match[0],
+      label: spec.label,
+      severity: spec.severity,
+      reason: spec.reason,
+      repairMove: spec.repairMove,
+    }));
+  });
+
+  return {
+    summary: windows.length
+      ? "These are the exact tokens where the output starts leaking trust, ownership, or precision."
+      : "No obvious token-level leaks were detected in this text.",
+    windows: windows.slice(0, 16),
+  };
+}
+
+export function buildPrepTrendSeries(
+  progress: InterviewPrepProgress,
+  days = 14,
+): PrepTrendPoint[] {
+  const today = new Date();
+
+  return Array.from({ length: days }, (_, index) => {
+    const targetDate = new Date(today.getTime() - (days - index - 1) * DAY_MS);
+    const dayKey = toDayKey(targetDate);
+    const reviews = progress.barRaiserHistory.filter((entry) =>
+      entry.date.startsWith(dayKey),
+    );
+    const score = reviews.length
+      ? Math.round(
+          reviews.reduce((sum, entry) => sum + entry.score, 0) / reviews.length,
+        )
+      : null;
+    const packRateValues = reviews
+      .filter(
+        (
+          entry,
+        ): entry is typeof entry & {
+          durationSeconds: number;
+        } => typeof entry.durationSeconds === "number" && entry.durationSeconds > 0,
+      )
+      .map((entry) =>
+        Math.round((entry.wordCount / entry.durationSeconds) * 60),
+      );
+    const packRate = packRateValues.length
+      ? Math.round(
+          packRateValues.reduce((sum, value) => sum + value, 0) /
+            packRateValues.length,
+        )
+      : null;
+
+    return {
+      day: dayKey,
+      label: targetDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      score,
+      packRate,
+    };
+  });
+}
+
+export function pickEnduranceLoopQuestions(
+  questions: readonly InterviewQuestion[],
+  count: number,
+  random: () => number = Math.random,
+): InterviewQuestion[] {
+  const remaining = [...questions];
+  const picked: InterviewQuestion[] = [];
+  const usedCategoryIds = new Set<string>();
+
+  while (remaining.length > 0 && picked.length < count) {
+    const unusedCategoryPool = remaining.filter(
+      (question) => !usedCategoryIds.has(question.sourceCategoryId),
+    );
+    const activePool = unusedCategoryPool.length ? unusedCategoryPool : remaining;
+    const index = Math.floor(random() * activePool.length);
+    const selection = activePool[index];
+
+    if (!selection) {
+      break;
+    }
+
+    picked.push(selection);
+    usedCategoryIds.add(selection.sourceCategoryId);
+    const remainingIndex = remaining.findIndex(
+      (question) => question.id === selection.id,
+    );
+    if (remainingIndex >= 0) {
+      remaining.splice(remainingIndex, 1);
+    }
+  }
+
+  return picked;
+}
+
 export function buildEnduranceLoopPlan(
   questions: readonly InterviewQuestion[],
   progress: InterviewPrepProgress,
@@ -4550,19 +4942,28 @@ export function buildEnduranceLoopPlan(
     }
     return right.followUps.length - left.followUps.length;
   });
+  const usedCategoryIds = new Set<string>();
 
   const builtRounds: EnduranceLoopRound[] = rounds.map((round, roundIndex) => {
     const preferred = remaining.filter((question) =>
       round.preferredCompetencies.includes(question.competency),
     );
     const sourcePool = preferred.length ? preferred : remaining;
-    const selected = sourcePool.slice(0, 3);
+    const unusedCategoryPool = sourcePool.filter(
+      (question) => !usedCategoryIds.has(question.sourceCategoryId),
+    );
+    const selected = pickEnduranceLoopQuestions(
+      unusedCategoryPool.length ? unusedCategoryPool : sourcePool,
+      3,
+      () => 0,
+    );
 
     for (const question of selected) {
       const index = remaining.findIndex((candidate) => candidate.id === question.id);
       if (index >= 0) {
         remaining.splice(index, 1);
       }
+      usedCategoryIds.add(question.sourceCategoryId);
     }
 
     const lens = getInterviewerLensById(round.lensId);
