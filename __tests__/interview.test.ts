@@ -469,6 +469,13 @@ describe("interview prep helpers", () => {
 
     const originalReview = reviewStarStory(original);
     const amplified = buildBarRaiserAmplification(original);
+    const originalActionScore =
+      originalReview.dimensions.find((dimension) => dimension.id === "action")
+        ?.score ?? 0;
+    const amplifiedActionScore =
+      amplified.amplifiedReview.dimensions.find(
+        (dimension) => dimension.id === "action",
+      )?.score ?? 0;
 
     expect(amplified.draft.result).toContain("3,000 units");
     expect(amplified.headline.length).toBeGreaterThan(20);
@@ -476,7 +483,12 @@ describe("interview prep helpers", () => {
     expect(amplified.amplifiedReview.score).toBeGreaterThanOrEqual(
       originalReview.score,
     );
-    expect(amplified.proofDemands.length).toBeGreaterThan(0);
+    expect(amplified.dimensionGoals).toHaveLength(5);
+    expect(
+      amplified.dimensionGoals.some((dimension) => dimension.targetScore >= 90),
+    ).toBe(true);
+    expect(amplifiedActionScore).toBeGreaterThanOrEqual(originalActionScore);
+    expect(Array.isArray(amplified.proofDemands)).toBe(true);
     expect(amplified.sectionUpgrades.length).toBeGreaterThan(0);
     expect(amplified.sourceBankPrompts.length).toBeGreaterThan(0);
     expect(

@@ -332,12 +332,23 @@ export interface BarRaiserAmplificationSection {
   reason: string;
 }
 
+export interface BarRaiserAmplificationDimensionGoal {
+  id: StoryReviewDimension["id"];
+  label: string;
+  currentScore: number;
+  amplifiedScore: number;
+  targetScore: number;
+  gapToTarget: number;
+  nextLift: string;
+}
+
 export interface BarRaiserAmplification {
   draft: StoryDraft;
   amplifiedReview: StoryReview;
   scoreDelta: number;
   headline: string;
   barRaiserReadout: string;
+  dimensionGoals: BarRaiserAmplificationDimensionGoal[];
   amplifierMoves: string[];
   proofDemands: string[];
   sourceBankPrompts: string[];
@@ -1699,6 +1710,380 @@ function tightenStoryReflection(text: string): string {
   return ensureSentence(segments[0]);
 }
 
+const BAR_RAISER_DIMENSION_TARGETS: Record<StoryReviewDimension["id"], number> = {
+  clarity: 92,
+  ownership: 92,
+  action: 94,
+  evidence: 94,
+  reflection: 90,
+};
+
+function stripTerminalPunctuation(text: string): string {
+  return normalizeStoryField(text).replace(/[.!?]+$/, "");
+}
+
+function lowerFirst(text: string): string {
+  if (!text) {
+    return text;
+  }
+
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+function chooseStoryField(primary: string, fallback: string): string {
+  const primaryValue = normalizeStoryField(primary);
+
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const fallbackValue = normalizeStoryField(fallback);
+  return hasPlaceholder(fallbackValue) ? "" : fallbackValue;
+}
+
+function extractMetricSnippet(text: string): string {
+  const match = normalizeStoryField(text).match(
+    /\b(\d+%|\$?\d[\d,.]*|hours?\b|days?\b|weeks?\b|months?\b|years?\b|users?\b|customers?\b|tickets?\b|units?\b)\b/i,
+  );
+
+  return match?.[0] ?? "";
+}
+
+function extractConstraintPhrase(text: string): string {
+  const normalized = stripTerminalPunctuation(text);
+  const match = normalized.match(/\b(without|while|despite|under)\b(.+)/i);
+
+  if (!match) {
+    return "";
+  }
+
+  return `${match[1].toLowerCase()}${match[2]}`.trim();
+}
+
+function stripTaskPrefix(text: string): string {
+  return stripTerminalPunctuation(text).replace(
+    /^i (?:needed to|had to|was responsible for|was tasked with)\s+/i,
+    "",
+  );
+}
+
+function buildAmplifiedTitle(story: StoryDraft, fallbackDraft: StoryDraft): string {
+  let title = chooseStoryField(story.title, fallbackDraft.title);
+
+  if (!title) {
+    title = chooseStoryField(story.situation, fallbackDraft.situation)
+      .split(/\s+/)
+      .slice(0, 6)
+      .join(" ");
+  }
+
+  const metric = extractMetricSnippet(
+    chooseStoryField(story.result, fallbackDraft.result),
+  );
+
+  if (metric && title && !title.includes(metric)) {
+    title = `${title} | ${metric}`;
+  }
+
+  if (title.length < 10) {
+    const extraContext = chooseStoryField(story.situation, fallbackDraft.situation)
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(" ");
+    title = `${title} ${extraContext}`.trim();
+  }
+
+  return title;
+}
+
+function buildAmplifiedSituation(
+  story: StoryDraft,
+  fallbackDraft: StoryDraft,
+): string {
+  const base = chooseStoryField(story.situation, fallbackDraft.situation);
+  let situation = tightenStorySituation(base);
+
+  if (!situation) {
+    return "";
+  }
+
+  if (countWords(situation) < 10) {
+    const taskContext = stripTaskPrefix(
+      chooseStoryField(story.task, fallbackDraft.task),
+    );
+
+    if (taskContext && !situation.includes(taskContext)) {
+      situation = `${situation} ${ensureSentence(
+        `The mandate was ${lowerFirst(taskContext)}`,
+      )}`;
+    }
+  }
+
+  return situation;
+}
+
+function buildAmplifiedTask(story: StoryDraft, fallbackDraft: StoryDraft): string {
+  const source = chooseStoryField(story.task, fallbackDraft.task);
+  const situationFallback = chooseStoryField(story.situation, fallbackDraft.situation);
+  let task = tightenStoryTask(source || situationFallback);
+
+  if (!task) {
+    return "";
+  }
+
+  if (!/\b(i needed|i had to|my objective|my goal|i was responsible)\b/i.test(task)) {
+    task = ensureSentence(`I had to ${lowerFirst(stripTaskPrefix(task))}`);
+  }
+
+  const constraint =
+    extractConstraintPhrase(story.task) ||
+    extractConstraintPhrase(story.situation) ||
+    extractConstraintPhrase(fallbackDraft.task);
+
+  if (constraint && !task.toLowerCase().includes(constraint.toLowerCase())) {
+    task = ensureSentence(`${stripTerminalPunctuation(task)} ${constraint}`);
+  }
+
+  return task;
+}
+
+function buildTradeoffSentence(task: string, situation: string, action: string): string {
+  const constraint = extractConstraintPhrase(task) || extractConstraintPhrase(situation);
+
+  if (constraint) {
+    return ensureSentence(
+      `Then, I chose the highest-leverage move first because I still had to ${constraint}`,
+    );
+  }
+
+  if (/\bbottleneck|symptom/i.test(action)) {
+    return "Then, I chose to attack the real bottleneck first because chasing the surface symptom would not have held.";
+  }
+
+  if (/\b(deadline|launch|customer|risk|quality|timeline|scope|incident|downtime|peak|quota)\b/i.test(
+    `${task} ${situation} ${action}`,
+  )) {
+    return "Then, I chose the highest-risk move first because speed without control would have created a second problem.";
+  }
+
+  return "";
+}
+
+function buildAlignmentSentence(text: string): string {
+  const actorMatch = normalizeStoryField(text).match(
+    /\b(leads?|team|stakeholders?|partners?|engineering|support|ops|finance|product|associates?|managers?|vendors?)\b/i,
+  );
+
+  if (!actorMatch) {
+    return "";
+  }
+
+  return ensureSentence(
+    `Next, I aligned ${actorMatch[0].toLowerCase()} on the plan, the watch points, and the next decision checkpoint`,
+  );
+}
+
+function buildFollowThroughSentence(action: string): string {
+  if (/\b(stayed|tracked|monitored|checked|watched|inspected|followed|shadowed|audited|stabilized)\b/i.test(action)) {
+    return "Finally, I stayed close to the signal until the fix stabilized and the next handoff was safe.";
+  }
+
+  return "Finally, I stayed close to the signal until the reset held and the next handoff was repeatable.";
+}
+
+function buildAmplifiedAction(
+  story: StoryDraft,
+  fallbackDraft: StoryDraft,
+): string {
+  const source = chooseStoryField(story.action, fallbackDraft.action);
+  let action = amplifyStoryAction(source);
+
+  if (!action) {
+    return "";
+  }
+
+  if (!countMatches(`${story.task} ${action}`, DECISION_PATTERN)) {
+    const tradeoffSentence = buildTradeoffSentence(story.task, story.situation, source);
+
+    if (tradeoffSentence && !action.includes(tradeoffSentence)) {
+      action = `${action} ${tradeoffSentence}`.trim();
+    }
+  }
+
+  if (!countMatches(action, TRADEOFF_PATTERN)) {
+    const tradeoffSentence = buildTradeoffSentence(story.task, story.situation, source);
+
+    if (tradeoffSentence && !action.includes(tradeoffSentence)) {
+      action = `${action} ${tradeoffSentence}`.trim();
+    }
+  }
+
+  if (!countMatches(action, ALIGNMENT_PATTERN)) {
+    const alignmentSentence = buildAlignmentSentence(
+      `${source} ${story.task} ${story.situation}`,
+    );
+
+    if (alignmentSentence) {
+      action = `${action} ${alignmentSentence}`.trim();
+    }
+  }
+
+  if (countWords(action) < 28) {
+    action = `${action} ${buildFollowThroughSentence(source)}`.trim();
+  }
+
+  return action
+    .split(/(?<=[.!?])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildAmplifiedResult(
+  story: StoryDraft,
+  fallbackDraft: StoryDraft,
+): string {
+  const source = chooseStoryField(story.result, fallbackDraft.result);
+  let result = tightenStoryResult(source);
+
+  if (!result) {
+    return "";
+  }
+
+  if (!countMatches(result, OUTCOME_PATTERN)) {
+    result = `${result} ${ensureSentence(
+      "This improved the operating outcome and lowered execution risk",
+    )}`.trim();
+  }
+
+  if (
+    !/\b(from\b.+\bto\b|reduced|increased|cut|grew|saved|avoided|improved)\b/i.test(
+      result,
+    )
+  ) {
+    const metric = extractMetricSnippet(result);
+    result = `${result} ${ensureSentence(
+      metric
+        ? `This improved the outcome at ${metric} scale`
+        : "This changed the business outcome in a measurable way",
+    )}`.trim();
+  }
+
+  if (
+    !countMatches(
+      `${result} ${story.reflection} ${fallbackDraft.reflection}`,
+      STANDARD_WORK_PATTERN,
+    )
+  ) {
+    result = `${result} ${ensureSentence(
+      "The fix also became a repeatable operating rhythm for the team",
+    )}`.trim();
+  }
+
+  return result;
+}
+
+function buildAmplifiedReflection(
+  story: StoryDraft,
+  fallbackDraft: StoryDraft,
+): string {
+  const source = chooseStoryField(story.reflection, fallbackDraft.reflection);
+  let reflection = tightenStoryReflection(source);
+
+  if (!reflection) {
+    reflection =
+      "Since then, I use the same operating rhythm and escalation path earlier so the risk does not repeat.";
+  }
+
+  if (!countMatches(reflection, LESSON_PATTERN)) {
+    reflection = ensureSentence(
+      `Since then, ${lowerFirst(stripTerminalPunctuation(reflection))}`,
+    );
+  }
+
+  if (countWords(reflection) < 8) {
+    reflection = ensureSentence(
+      `${stripTerminalPunctuation(reflection)}, and I use it as a repeatable operating rhythm now`,
+    );
+  }
+
+  if (!countMatches(`${story.result} ${reflection}`, STANDARD_WORK_PATTERN)) {
+    reflection = ensureSentence(
+      `${stripTerminalPunctuation(reflection)}, and I made it part of the operating rhythm`,
+    );
+  }
+
+  return reflection;
+}
+
+function maximizeStoryForBarRaiser(
+  story: StoryDraft,
+  fallbackDraft: StoryDraft,
+): StoryDraft {
+  let nextDraft = sanitizeStoryDraft({
+    competency: story.competency,
+    categoryTags: story.categoryTags,
+    title: buildAmplifiedTitle(story, fallbackDraft),
+    situation: buildAmplifiedSituation(story, fallbackDraft),
+    task: buildAmplifiedTask(story, fallbackDraft),
+    action: buildAmplifiedAction(story, fallbackDraft),
+    result: buildAmplifiedResult(story, fallbackDraft),
+    reflection: buildAmplifiedReflection(story, fallbackDraft),
+  });
+
+  for (let iteration = 0; iteration < 2; iteration += 1) {
+    const review = reviewStarStory(nextDraft);
+    const clarityNeedsLift =
+      review.dimensions.find((dimension) => dimension.id === "clarity")?.score ??
+      0;
+    const ownershipNeedsLift =
+      review.dimensions.find((dimension) => dimension.id === "ownership")?.score ??
+      0;
+    const actionNeedsLift =
+      review.dimensions.find((dimension) => dimension.id === "action")?.score ?? 0;
+    const evidenceNeedsLift =
+      review.dimensions.find((dimension) => dimension.id === "evidence")?.score ??
+      0;
+    const reflectionNeedsLift =
+      review.dimensions.find((dimension) => dimension.id === "reflection")?.score ??
+      0;
+
+    nextDraft = sanitizeStoryDraft({
+      competency: nextDraft.competency,
+      categoryTags: nextDraft.categoryTags,
+      title:
+        clarityNeedsLift < BAR_RAISER_DIMENSION_TARGETS.clarity
+          ? buildAmplifiedTitle(nextDraft, fallbackDraft)
+          : nextDraft.title,
+      situation:
+        clarityNeedsLift < BAR_RAISER_DIMENSION_TARGETS.clarity
+          ? buildAmplifiedSituation(nextDraft, fallbackDraft)
+          : nextDraft.situation,
+      task:
+        Math.min(clarityNeedsLift, ownershipNeedsLift) <
+        BAR_RAISER_DIMENSION_TARGETS.ownership
+          ? buildAmplifiedTask(nextDraft, fallbackDraft)
+          : nextDraft.task,
+      action:
+        Math.min(ownershipNeedsLift, actionNeedsLift) <
+        BAR_RAISER_DIMENSION_TARGETS.action
+          ? buildAmplifiedAction(nextDraft, fallbackDraft)
+          : nextDraft.action,
+      result:
+        evidenceNeedsLift < BAR_RAISER_DIMENSION_TARGETS.evidence
+          ? buildAmplifiedResult(nextDraft, fallbackDraft)
+          : nextDraft.result,
+      reflection:
+        Math.min(evidenceNeedsLift, reflectionNeedsLift) <
+        BAR_RAISER_DIMENSION_TARGETS.reflection
+          ? buildAmplifiedReflection(nextDraft, fallbackDraft)
+          : nextDraft.reflection,
+    });
+  }
+
+  return nextDraft;
+}
+
 function buildStoryVerdictLabel(score: number): StoryReview["verdictLabel"] {
   if (score >= 85) {
     return "Elite";
@@ -2523,40 +2908,7 @@ export function buildBarRaiserAmplification(
     lesson: safe.reflection,
   });
 
-  const amplifiedDraft = sanitizeStoryDraft({
-    competency: safe.competency,
-    categoryTags: safe.categoryTags,
-    title:
-      safe.title.trim() ||
-      (!hasPlaceholder(draftSuggestion.draft.title)
-        ? draftSuggestion.draft.title
-        : ""),
-    situation: safe.situation.trim()
-      ? tightenStorySituation(safe.situation)
-      : !hasPlaceholder(draftSuggestion.draft.situation)
-        ? tightenStorySituation(draftSuggestion.draft.situation)
-        : "",
-    task: safe.task.trim()
-      ? tightenStoryTask(safe.task)
-      : !hasPlaceholder(draftSuggestion.draft.task)
-        ? tightenStoryTask(draftSuggestion.draft.task)
-        : "",
-    action: safe.action.trim()
-      ? amplifyStoryAction(safe.action)
-      : !hasPlaceholder(draftSuggestion.draft.action)
-        ? amplifyStoryAction(draftSuggestion.draft.action)
-        : "",
-    result: safe.result.trim()
-      ? tightenStoryResult(safe.result)
-      : !hasPlaceholder(draftSuggestion.draft.result)
-        ? tightenStoryResult(draftSuggestion.draft.result)
-        : "",
-    reflection: safe.reflection.trim()
-      ? tightenStoryReflection(safe.reflection)
-      : !hasPlaceholder(draftSuggestion.draft.reflection)
-        ? tightenStoryReflection(draftSuggestion.draft.reflection)
-        : "",
-  });
+  const amplifiedDraft = maximizeStoryForBarRaiser(safe, draftSuggestion.draft);
 
   const amplifiedReviewCandidate = reviewStarStory(amplifiedDraft);
   const keepOriginal = amplifiedReviewCandidate.score < originalReview.score;
@@ -2564,6 +2916,9 @@ export function buildBarRaiserAmplification(
   const bestReview = keepOriginal ? originalReview : amplifiedReviewCandidate;
   const scoreDelta = bestReview.score - originalReview.score;
   const bestPressureTest = buildStoryPressureTest(bestDraft);
+  const originalDimensionLookup = Object.fromEntries(
+    originalReview.dimensions.map((dimension) => [dimension.id, dimension]),
+  ) as Record<StoryReviewDimension["id"], StoryReviewDimension>;
 
   const sectionMetadata: Array<{
     field: BarRaiserAmplificationField;
@@ -2665,19 +3020,45 @@ export function buildBarRaiserAmplification(
   const weakestDimension = [...bestReview.dimensions].sort(
     (left, right) => left.score - right.score,
   )[0];
+  const dimensionNextLift: Record<StoryReviewDimension["id"], string> = {
+    clarity:
+      "Lead with the stake and your mandate in two clean sentences so the story lands before the follow-up starts.",
+    ownership:
+      'Keep the answer anchored in "I decided," "I changed," and "I escalated" so no one can hide your signal inside team language.',
+    action:
+      "Make the action sequence carry the story: order, tradeoff, alignment, and follow-through all need to be audible.",
+    evidence:
+      "Close with proof another person could verify: metric, delta, scope, and the repeatable mechanism that remained.",
+    reflection:
+      "Finish with the operating lesson and the mechanism you now use so the story sounds learned from, not just survived.",
+  };
+  const dimensionGoals = bestReview.dimensions.map((dimension) => {
+    const currentScore = originalDimensionLookup[dimension.id]?.score ?? dimension.score;
+    const targetScore = BAR_RAISER_DIMENSION_TARGETS[dimension.id];
+
+    return {
+      id: dimension.id,
+      label: dimension.label,
+      currentScore,
+      amplifiedScore: dimension.score,
+      targetScore,
+      gapToTarget: Math.max(0, targetScore - dimension.score),
+      nextLift: dimensionNextLift[dimension.id],
+    };
+  });
 
   const headline =
     keepOriginal
-      ? "Bar Raiser amplify kept the strongest source wording. The next lift is harder proof, clearer tradeoffs, and calmer delivery, not more cosmetic rewriting."
+      ? "Bar Raiser amplify kept the strongest source wording. The next lift is now in harder proof, sharper tradeoffs, and calmer delivery rather than cosmetic rewriting."
       : scoreDelta > 0
-        ? `Bar Raiser amplify lifts the story by ${scoreDelta} point${scoreDelta === 1 ? "" : "s"} and makes the signal easier to hear in a hard loop.`
+        ? `Bar Raiser amplify lifts the story by ${scoreDelta} point${scoreDelta === 1 ? "" : "s"} and deliberately pushes each dimension toward the elite bar.`
         : bestReview.score >= 85
-          ? "The story was already strong. Bar Raiser amplify mostly tightens the pacing so the strongest proof lands earlier."
+          ? "The story was already strong. Bar Raiser amplify mostly tightens the pacing and sequencing so the strongest proof lands earlier."
           : "The wording is tighter, but the limiting factor is still the quality of the facts, not the phrasing.";
 
   const barRaiserReadout =
     bestReview.score >= 85
-      ? `If I were the Bar Raiser, I would let this story stay in the loop, but I would still probe ${weakestDimension.label.toLowerCase()} because that is the part that separates polished from truly senior.`
+      ? `If I were the Bar Raiser, I would let this story stay in the loop, but I would still probe ${weakestDimension.label.toLowerCase()} because that is the part that separates polished from truly senior signal.`
       : bestReview.score >= 70
         ? `If I were the Bar Raiser, I would keep pressing on ${weakestDimension.label.toLowerCase()}. This is moving toward a hire signal, but it still needs harder proof before I fully trust it.`
         : `If I were the Bar Raiser, this still would not carry the loop. The weakest signal is ${weakestDimension.label.toLowerCase()}, and until that gets sharper, the story is still exposed.`;
@@ -2688,6 +3069,7 @@ export function buildBarRaiserAmplification(
     scoreDelta,
     headline,
     barRaiserReadout,
+    dimensionGoals,
     amplifierMoves: [
       ...new Set([
         ...bestReview.upgradeMoves,

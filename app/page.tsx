@@ -2856,6 +2856,48 @@ export default function HomePage() {
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+                <div className="lg:col-span-2">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    {barRaiserAmplification.dimensionGoals.map((dimension) => (
+                      <div
+                        key={dimension.id}
+                        className="rounded-[22px] border border-white/10 bg-white/5 p-4"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
+                          {dimension.label}
+                        </p>
+                        <div className="mt-3 flex items-center gap-2 text-sm">
+                          <span className="rounded-full bg-white/10 px-2.5 py-1 font-semibold text-white">
+                            {dimension.currentScore}
+                          </span>
+                          <span className="text-white/45">{"->"}</span>
+                          <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 font-semibold text-cyan-100">
+                            {dimension.amplifiedScore}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs uppercase tracking-[0.14em] text-white/45">
+                          Elite bar {dimension.targetScore}+
+                        </p>
+                        <p
+                          className={classNames(
+                            "mt-2 text-sm font-semibold",
+                            dimension.gapToTarget === 0
+                              ? "text-emerald-200"
+                              : "text-amber-100",
+                          )}
+                        >
+                          {dimension.gapToTarget === 0
+                            ? "At elite bar"
+                            : `${dimension.gapToTarget} pts still open`}
+                        </p>
+                        <p className="mt-3 text-sm leading-6 text-white/72">
+                          {dimension.nextLift}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
