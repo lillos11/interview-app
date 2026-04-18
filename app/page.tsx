@@ -3431,6 +3431,138 @@ export default function HomePage() {
                     );
                   })}
                 </div>
+                <div className="mt-6 rounded-[28px] border border-red-500/40 bg-zinc-950 p-5 text-white shadow-[0_24px_80px_rgba(15,15,18,0.28)]">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-300">
+                        Binary rubric matrix
+                      </p>
+                      <h3 className="mt-1 text-xl font-semibold">
+                        Score comes from evidence first, not vibes.
+                      </h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
+                        No private chain-of-thought is exposed here. The engine
+                        writes this auditable eval matrix first, then calculates
+                        the final score from pass/fail criteria.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
+                      <div className="rounded-2xl border border-white/10 bg-white/8 px-3 py-2">
+                        <span className="block text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+                          Binary
+                        </span>
+                        <span className="mt-1 block text-lg text-red-200">
+                          {liveStoryReview.scoringAudit.binary_score}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/8 px-3 py-2">
+                        <span className="block text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+                          Jury
+                        </span>
+                        <span className="mt-1 block text-lg text-red-200">
+                          {liveStoryReview.scoringAudit.jury_consensus_score}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-red-400/50 bg-red-500/15 px-3 py-2">
+                        <span className="block text-[10px] uppercase tracking-[0.14em] text-red-200">
+                          Final
+                        </span>
+                        <span className="mt-1 block text-lg text-white">
+                          {liveStoryReview.scoringAudit.final_score}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 xl:grid-cols-2">
+                    {liveStoryReview.scoringAudit.eval_matrix.map((item) => (
+                      <div
+                        key={item.criterion_id}
+                        className="rounded-[22px] border border-white/10 bg-zinc-900/80 p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {item.check}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-zinc-300">
+                              {item.evidence}
+                            </p>
+                          </div>
+                          <span
+                            className={classNames(
+                              "shrink-0 rounded-full px-3 py-1 text-xs font-semibold",
+                              item.passed
+                                ? "bg-white text-zinc-950"
+                                : "bg-red-500 text-white",
+                            )}
+                          >
+                            {item.passed ? item.points : 0}/{item.points}
+                          </span>
+                        </div>
+                        {!item.passed ? (
+                          <div className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm leading-6 text-red-100">
+                            {item.repair_move}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-[22px] border border-white/10 bg-black/30 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                        Golden set anchors
+                      </p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-3">
+                        {liveStoryReview.scoringAudit.golden_set.map((anchor) => (
+                          <div
+                            key={anchor.anchor_id}
+                            className="rounded-2xl border border-white/10 bg-zinc-900 p-3"
+                          >
+                            <p className="text-sm font-semibold text-red-200">
+                              {anchor.label}
+                            </p>
+                            <p className="mt-2 text-xs leading-5 text-zinc-300">
+                              {anchor.why}
+                            </p>
+                            <p className="mt-3 text-xs leading-5 text-zinc-400">
+                              {anchor.fit}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[22px] border border-white/10 bg-black/30 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                        Judge-and-jury consensus
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {liveStoryReview.scoringAudit.jury_scores.map((judge) => (
+                          <div
+                            key={judge.judge_id}
+                            className="rounded-2xl border border-white/10 bg-zinc-900 p-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-white">
+                                {judge.label}
+                              </p>
+                              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-zinc-950">
+                                {judge.score}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-300">
+                              {judge.provider_role}
+                            </p>
+                            <p className="mt-2 text-xs leading-5 text-zinc-300">
+                              {judge.rationale}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"

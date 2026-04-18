@@ -37,6 +37,7 @@ import {
   reviewStarStory,
   saveStarStory,
   scoreStarStory,
+  STORY_SCORING_SYSTEM_PROMPT,
   toggleChecklistItem,
   updateCareerProfile,
   updatePitchPack,
@@ -335,11 +336,14 @@ describe("interview prep helpers", () => {
         competency: "leadership",
         categoryTags: ["ownership", "deliver-results", "think-big"],
         title: "Raised launch quality",
-        situation: "The launch process was unstable.",
-        task: "I needed to improve reliability quickly.",
+        situation:
+          "During Q1 2026, the launch process was unstable and critical defects were putting customer readiness at risk.",
+        task:
+          "I owned the reliability recovery and had to align Product, Engineering, and Support before launch.",
         action:
-          "I rebuilt the review process, made ownership explicit, and tracked defects daily.",
-        result: "Critical defects fell 42% and launch confidence improved.",
+          "First, I rebuilt the review process, then I chose to cut lower-priority scope, made ownership explicit, and tracked defects daily through a launch-readiness dashboard.",
+        result:
+          "Critical defects fell 42% over 4 weeks, customer escalation risk dropped, and the dashboard became the standard operating cadence.",
         reflection:
           "I now use the same operating cadence on every high-risk release.",
       },
@@ -1069,6 +1073,43 @@ describe("interview prep helpers", () => {
     expect(review.brutalTruth.length).toBeGreaterThan(20);
     expect(review.debriefReadout.toLowerCase()).toContain("debrief");
     expect(review.repairPlan.length).toBeGreaterThan(1);
+  });
+
+  it("scores stories through an auditable binary rubric before the final score", () => {
+    const review = reviewStarStory({
+      competency: "ownership",
+      categoryTags: ["deliver-results", "dive-deep"],
+      title: "Peak defect recovery",
+      situation:
+        "During Peak 2025, customer miss risk rose because outbound defects were increasing.",
+      task:
+        "I owned the recovery plan and had to align Ops, Quality, and Learning before the next shift.",
+      action:
+        "First, I audited the top defect path and chose to pause one low-priority improvement so we could protect customer delivery. Then I reset the inspection cadence, trained 18 associates on the new checklist, and aligned the Quality partner on hourly misses.",
+      result:
+        "Defects dropped from 7.8% to 4.9% over 3 weeks, customer misses fell 22%, and the checklist became the shift standard work.",
+      reflection:
+        "Since then, I now build the measurement cadence before I ask a team to change behavior.",
+    });
+    const earnedPoints = review.scoringAudit.eval_matrix.reduce(
+      (sum, item) => sum + (item.passed ? item.points : 0),
+      0,
+    );
+
+    expect(STORY_SCORING_SYSTEM_PROMPT).toContain("eval_matrix");
+    expect(STORY_SCORING_SYSTEM_PROMPT).toContain("Do not expose private chain-of-thought");
+    expect(review.scoringAudit.schema_version).toBe("binary-story-rubric-v1");
+    expect(review.scoringAudit.eval_matrix).toHaveLength(10);
+    expect(review.scoringAudit.binary_score).toBe(earnedPoints);
+    expect(review.scoringAudit.final_score).toBe(review.scoringAudit.binary_score);
+    expect(review.score).toBe(review.scoringAudit.final_score);
+    expect(review.scoringAudit.golden_set.map((anchor) => anchor.score)).toEqual([
+      45,
+      74,
+      95,
+    ]);
+    expect(review.scoringAudit.jury_scores).toHaveLength(3);
+    expect(review.score).toBeLessThanOrEqual(100);
   });
 
   it("scores prompt readiness from saved stories and reps", () => {

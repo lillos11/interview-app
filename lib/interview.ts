@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { AMAZON_INTERVIEW_QUESTION_BANK_RAW } from "./amazonQuestionBankData";
 
 export const INTERVIEW_STORAGE_KEY = "interview-command-center-v1";
@@ -299,11 +301,61 @@ export interface StoryReviewDimension {
   note: string;
 }
 
+export const StoryEvalMatrixItemSchema = z.object({
+  criterion_id: z.string().min(1),
+  check: z.string().min(1),
+  points: z.number().int().min(0).max(100),
+  passed: z.boolean(),
+  evidence: z.string().min(1),
+  repair_move: z.string().min(1),
+});
+
+export const StoryGoldenSetAnchorSchema = z.object({
+  anchor_id: z.string().min(1),
+  label: z.string().min(1),
+  score: z.number().int().min(0).max(100),
+  why: z.string().min(1),
+  fit: z.string().min(1),
+});
+
+export const StoryJuryScoreSchema = z.object({
+  judge_id: z.string().min(1),
+  label: z.string().min(1),
+  provider_role: z.string().min(1),
+  score: z.number().int().min(0).max(100),
+  rationale: z.string().min(1),
+});
+
+export const StoryScoringAuditSchema = z.object({
+  schema_version: z.literal("binary-story-rubric-v1"),
+  eval_matrix: z.array(StoryEvalMatrixItemSchema).min(1),
+  binary_score: z.number().int().min(0).max(100),
+  golden_set: z.array(StoryGoldenSetAnchorSchema).min(3),
+  jury_scores: z.array(StoryJuryScoreSchema).min(3),
+  jury_consensus_score: z.number().int().min(0).max(100),
+  final_score: z.number().int().min(0).max(100),
+});
+
+export type StoryEvalMatrixItem = z.infer<typeof StoryEvalMatrixItemSchema>;
+export type StoryGoldenSetAnchor = z.infer<typeof StoryGoldenSetAnchorSchema>;
+export type StoryJuryScore = z.infer<typeof StoryJuryScoreSchema>;
+export type StoryScoringAudit = z.infer<typeof StoryScoringAuditSchema>;
+
+export const STORY_SCORING_SYSTEM_PROMPT = [
+  "You are a strict Amazon Bar Raiser story evaluator.",
+  "Do not expose private chain-of-thought. Produce an auditable eval_matrix instead.",
+  "The eval_matrix must be created before final_score and each row must be binary: passed=true earns all points, passed=false earns 0.",
+  "Use the golden_set anchors to calibrate 45 versus 74 versus 95 before assigning final_score.",
+  "Never reward vague dates, placeholder metrics, passive ownership, or results that do not connect back to the original problem.",
+  "Return JSON matching StoryScoringAuditSchema exactly.",
+].join(" ");
+
 export interface StoryReview {
   score: number;
   verdict: "not_ready" | "competitive" | "elite";
   verdictLabel: string;
   dimensions: StoryReviewDimension[];
+  scoringAudit: StoryScoringAudit;
   strengths: string[];
   misses: string[];
   upgradeMoves: string[];
@@ -3033,6 +3085,369 @@ export function createEmptyStoryDraft(
   };
 }
 
+function hasSpecificTimeHorizon(story: StoryDraft): boolean {
+  const allText = `${story.situation} ${story.task} ${story.action} ${story.result} ${story.reflection}`;
+
+  return (
+    countMatches(allText, DATE_ANCHOR_PATTERN) > 0 ||
+    /\b(?:within|over|for|in|after|during)\s+\d+\s+(?:hours?|days?|weeks?|months?|quarters?|years?)\b/i.test(
+      allText,
+    )
+  );
+}
+
+function hasSpecificMetric(story: StoryDraft): boolean {
+  const proofText = `${story.action} ${story.result} ${story.reflection}`;
+
+  return (
+    countMetrics(proofText) > 0 &&
+    countMatches(proofText, PLACEHOLDER_METRIC_PATTERN) === 0 &&
+    !/\b[xyz]%\b/i.test(proofText)
+  );
+}
+
+function hasCrossFunctionalStakeholder(story: StoryDraft): boolean {
+  const actionText = `${story.task} ${story.action}`;
+
+  return countMatches(actionText, ALIGNMENT_PATTERN) > 0;
+}
+
+function hasImpactConnectedToProblem(story: StoryDraft): boolean {
+  const setup = `${story.situation} ${story.task}`.toLowerCase();
+  const result = `${story.result} ${story.reflection}`.toLowerCase();
+  const problemSignals =
+    setup.match(
+      /\b(safety|quality|defect|throughput|productivity|customer|labor|cost|overtime|attrition|backlog|capacity|risk|sla|service|miss|late|incident|launch|delivery|training|standard|trust)\b/gi,
+    ) ?? [];
+  const repeatedProblemSignal = problemSignals.some((signal) =>
+    result.includes(signal.toLowerCase()),
+  );
+
+  return (
+    repeatedProblemSignal ||
+    (countMatches(result, OUTCOME_PATTERN) > 0 && hasSpecificMetric(story))
+  );
+}
+
+function hasPersonalOwnership(story: StoryDraft): boolean {
+  const ownershipText = `${story.task} ${story.action}`;
+  const strongOwnership =
+    /\bi\s+(?:decided|chose|led|owned|drove|created|rebuilt|aligned|escalated|cut|prioritized|changed|implemented|shipped|reframed|set|designed|coached|standardized|built|reset|audited|moved|trained|inspected|launched)\b/i.test(
+      ownershipText,
+    );
+
+  return strongOwnership && countMatches(ownershipText, OWNERSHIP_PATTERN) >= 2;
+}
+
+function hasSequencedAction(story: StoryDraft): boolean {
+  const actionWords = countWords(story.action);
+  const sequenceSignals = countMatches(story.action, STRUCTURE_PATTERN);
+
+  return sequenceSignals >= 2 || (sequenceSignals >= 1 && actionWords >= 24);
+}
+
+function hasTradeoffJudgment(story: StoryDraft): boolean {
+  return countMatches(story.action, TRADEOFF_PATTERN) > 0;
+}
+
+function hasRepeatableMechanism(story: StoryDraft): boolean {
+  return (
+    countMatches(
+      `${story.action} ${story.result} ${story.reflection}`,
+      STANDARD_WORK_PATTERN,
+    ) > 0
+  );
+}
+
+function hasOperatingLesson(story: StoryDraft): boolean {
+  return (
+    countMatches(story.reflection, LESSON_PATTERN) > 0 ||
+    countWords(story.reflection) >= 10
+  );
+}
+
+function hasNoCriticalAmbiguity(story: StoryDraft): boolean {
+  const allText = `${story.title} ${story.situation} ${story.task} ${story.action} ${story.result} ${story.reflection}`;
+
+  return (
+    !hasPlaceholder(allText) &&
+    countMatches(allText, AMBIGUOUS_DATE_PATTERN) === 0 &&
+    countMatches(allText, PLACEHOLDER_METRIC_PATTERN) === 0 &&
+    countMatches(allText, SOFT_NUMBER_PATTERN) === 0 &&
+    countMatches(allText, WEAK_VERB_PATTERN) <= 1 &&
+    countMatches(allText, PASSIVE_VOICE_PATTERN) <= 2
+  );
+}
+
+function buildEvalMatrixItem({
+  criterionId,
+  check,
+  points,
+  passed,
+  evidence,
+  repairMove,
+}: {
+  criterionId: string;
+  check: string;
+  points: number;
+  passed: boolean;
+  evidence: string;
+  repairMove: string;
+}): StoryEvalMatrixItem {
+  return {
+    criterion_id: criterionId,
+    check,
+    points,
+    passed,
+    evidence,
+    repair_move: repairMove,
+  };
+}
+
+function buildGoldenSet(score: number): StoryGoldenSetAnchor[] {
+  return [
+    {
+      anchor_id: "weak-45",
+      label: "45 - weak / below bar",
+      score: 45,
+      why:
+        "The story has activity, but the candidate hides behind vague setup, soft ownership, weak dates, and no hard operating proof.",
+      fit:
+        score < 60
+          ? "Your current score is closest to this anchor. The story needs facts before polish."
+          : "This is the floor to avoid: vague action, vague result, and no Bar Raiser-ready proof.",
+    },
+    {
+      anchor_id: "bar-raiser-minimum-74",
+      label: "74 - Bar Raiser minimum",
+      score: 74,
+      why:
+        "The story names a real problem, shows personal ownership, gives at least one measurable result, and can survive basic follow-up.",
+      fit:
+        score >= 60 && score < 85
+          ? "Your current score is closest to this anchor. It is becoming usable, but it is not yet elite."
+          : "This is the minimum viable bar: specific enough to defend, but still missing full seniority signal.",
+    },
+    {
+      anchor_id: "elite-95",
+      label: "95 - elite / loop-winning",
+      score: 95,
+      why:
+        "The story has a dated business problem, explicit ownership, tradeoff logic, cross-functional pressure, from-to metrics, a repeatable mechanism, and a lesson.",
+      fit:
+        score >= 85
+          ? "Your current score is closest to this anchor. Keep pressure-testing for exactness and delivery."
+          : "This is the target: every section earns its keep, and every claim has proof.",
+    },
+  ];
+}
+
+function getStoryDimensionScore(
+  dimensions: readonly StoryReviewDimension[],
+  dimensionId: StoryReviewDimension["id"],
+): number {
+  return (
+    dimensions.find((dimension) => dimension.id === dimensionId)?.score ?? 0
+  );
+}
+
+export function buildStoryScoringAudit(
+  story: Partial<StoryDraft>,
+  dimensions?: readonly StoryReviewDimension[],
+): StoryScoringAudit {
+  const safe = sanitizeStoryDraft(story);
+  const storyDimensions =
+    dimensions ?? [
+      scoreStoryClarity(safe),
+      scoreStoryOwnership(safe),
+      scoreStoryAction(safe),
+      scoreStoryEvidence(safe),
+      scoreStoryReflection(safe),
+    ];
+  const specificTimeHorizon = hasSpecificTimeHorizon(safe);
+  const specificMetric = hasSpecificMetric(safe);
+  const crossFunctionalStakeholder = hasCrossFunctionalStakeholder(safe);
+  const impactConnectedToProblem = hasImpactConnectedToProblem(safe);
+  const personalOwnership = hasPersonalOwnership(safe);
+  const sequencedAction = hasSequencedAction(safe);
+  const tradeoffJudgment = hasTradeoffJudgment(safe);
+  const repeatableMechanism = hasRepeatableMechanism(safe);
+  const operatingLesson = hasOperatingLesson(safe);
+  const noCriticalAmbiguity = hasNoCriticalAmbiguity(safe);
+
+  const eval_matrix: StoryEvalMatrixItem[] = [
+    buildEvalMatrixItem({
+      criterionId: "time_horizon",
+      check: "Did the story include a specific date or time horizon?",
+      points: 10,
+      passed: specificTimeHorizon,
+      evidence: specificTimeHorizon
+        ? "Found a date, named period, or exact duration."
+        : "No exact date, named period, or duration was found.",
+      repairMove:
+        "Add the exact period: month, quarter, Peak/Prime period, or the number of days/weeks the work covered.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "specific_metric",
+      check: "Did the story name a specific metric?",
+      points: 15,
+      passed: specificMetric,
+      evidence: specificMetric
+        ? "Found a concrete number or measurable operational metric."
+        : "No concrete metric was found, or the metric still looks like a placeholder.",
+      repairMove:
+        "Replace vague impact with a metric from-to statement: defect rate, UPH, backlog, cost, labor hours, safety incidents, or customer misses.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "cross_functional_stakeholder",
+      check: "Did the candidate identify a cross-functional stakeholder?",
+      points: 10,
+      passed: crossFunctionalStakeholder,
+      evidence: crossFunctionalStakeholder
+        ? "Found stakeholder, partner, alignment, or function language in the ownership/action section."
+        : "No clear stakeholder or partner pressure was named.",
+      repairMove:
+        "Name who had to be influenced: Ops, Safety, HR, Finance, Engineering, Learning, Quality, a peer manager, or a senior leader.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "impact_connected_to_problem",
+      check: "Did the impact directly connect to the initial problem?",
+      points: 15,
+      passed: impactConnectedToProblem,
+      evidence: impactConnectedToProblem
+        ? "The result appears connected to the setup through repeated problem language or measurable outcome language."
+        : "The result does not clearly close the loop on the problem introduced at the start.",
+      repairMove:
+        "End with the same business noun you opened with: if the problem was defects, prove defect reduction; if it was labor, prove labor impact.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "personal_ownership",
+      check: "Did the candidate make personal ownership impossible to miss?",
+      points: 12,
+      passed: personalOwnership,
+      evidence: personalOwnership
+        ? "Found first-person ownership paired with a strong leadership verb."
+        : "Ownership is too soft, too team-based, or missing a strong personal decision verb.",
+      repairMove:
+        'Use direct language: "I decided," "I led," "I escalated," "I changed," or "I implemented."',
+    }),
+    buildEvalMatrixItem({
+      criterionId: "sequenced_action",
+      check: "Did the action section show sequence instead of summary?",
+      points: 10,
+      passed: sequencedAction,
+      evidence: sequencedAction
+        ? "Found ordered action language with enough action depth."
+        : "The action section reads like a summary instead of a sequence of decisions.",
+      repairMove:
+        "Write the action in order: first diagnosis, then decision, then stakeholder move, then mechanism.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "tradeoff_judgment",
+      check: "Did the story show tradeoff judgment?",
+      points: 10,
+      passed: tradeoffJudgment,
+      evidence: tradeoffJudgment
+        ? "Found tradeoff, constraint, risk, priority, or because/instead decision language."
+        : "No tradeoff or decision logic was visible.",
+      repairMove:
+        "Add the hard choice: what you protected, what you sacrificed, and why that was the right call.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "repeatable_mechanism",
+      check: "Did the story create a repeatable mechanism or standard work?",
+      points: 8,
+      passed: repeatableMechanism,
+      evidence: repeatableMechanism
+        ? "Found standard work, cadence, playbook, dashboard, checklist, workflow, or mechanism language."
+        : "The story does not yet prove the win became repeatable.",
+      repairMove:
+        "Add the mechanism that stayed after the story: SOP, dashboard, escalation cadence, checklist, or inspection rhythm.",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "operating_lesson",
+      check: "Did the candidate show learning or operating maturity?",
+      points: 5,
+      passed: operatingLesson,
+      evidence: operatingLesson
+        ? "Found reflection or enough lesson depth to show growth."
+        : "The story ends without showing what changed in how you operate.",
+      repairMove:
+        "Add one sentence that starts with: Since then, I now...",
+    }),
+    buildEvalMatrixItem({
+      criterionId: "no_placeholders_or_vague_claims",
+      check: "Did the story avoid placeholders, vague dates, soft numbers, passive voice, and weak verbs?",
+      points: 5,
+      passed: noCriticalAmbiguity,
+      evidence: noCriticalAmbiguity
+        ? "No critical placeholder, vague-date, soft-number, passive-voice, or weak-verb defect exceeded the threshold."
+        : "Found ambiguity, weak verbs, passive voice, soft numbers, or placeholder-style wording.",
+      repairMove:
+        "Delete placeholders and soft claims. Replace them with exact dates, exact metrics, and direct first-person verbs.",
+    }),
+  ];
+  const binary_score = eval_matrix.reduce(
+    (sum, item) => sum + (item.passed ? item.points : 0),
+    0,
+  );
+  const narrativeStructureScore = clampScore(
+    (getStoryDimensionScore(storyDimensions, "clarity") +
+      getStoryDimensionScore(storyDimensions, "action") +
+      getStoryDimensionScore(storyDimensions, "reflection")) /
+      3,
+  );
+  const strictRubricScore = clampScore(binary_score);
+  const lpAlignmentScore = clampScore(
+    getStoryDimensionScore(storyDimensions, "ownership") * 0.34 +
+      getStoryDimensionScore(storyDimensions, "evidence") * 0.34 +
+      getStoryDimensionScore(storyDimensions, "action") * 0.22 +
+      (safe.categoryTags.length > 0 ? 10 : 0) -
+      (noCriticalAmbiguity ? 0 : 8),
+  );
+  const jury_scores: StoryJuryScore[] = [
+    {
+      judge_id: "narrative_structure",
+      label: "Narrative structure judge",
+      provider_role: "Provider-ready narrative model slot",
+      score: narrativeStructureScore,
+      rationale:
+        "Calibrates whether the STAR structure, action depth, and lesson would be easy to follow live.",
+    },
+    {
+      judge_id: "strict_rubric",
+      label: "Strict rubric judge",
+      provider_role: "Provider-ready rubric adherence model slot",
+      score: strictRubricScore,
+      rationale:
+        "Uses the binary pass/fail matrix as a calculator. Missed criteria earn zero points.",
+    },
+    {
+      judge_id: "amazon_lp_alignment",
+      label: "Amazon LP alignment judge",
+      provider_role: "Provider-ready Amazon signal model slot",
+      score: lpAlignmentScore,
+      rationale:
+        "Checks whether ownership, evidence, action depth, and category tags line up with Amazon-style signals.",
+    },
+  ];
+  const jury_consensus_score = clampScore(
+    jury_scores.reduce((sum, judge) => sum + judge.score, 0) /
+      jury_scores.length,
+  );
+  const final_score = strictRubricScore;
+
+  return StoryScoringAuditSchema.parse({
+    schema_version: "binary-story-rubric-v1",
+    eval_matrix,
+    binary_score,
+    golden_set: buildGoldenSet(final_score),
+    jury_scores,
+    jury_consensus_score,
+    final_score,
+  });
+}
+
 export function reviewStarStory(story: Partial<StoryDraft>): StoryReview {
   const safe = sanitizeStoryDraft(story);
   const dimensions = [
@@ -3042,35 +3457,8 @@ export function reviewStarStory(story: Partial<StoryDraft>): StoryReview {
     scoreStoryEvidence(safe),
     scoreStoryReflection(safe),
   ];
-  const score = clampScore(
-    dimensions.reduce((sum, dimension) => {
-      const weights: Record<StoryReviewDimension["id"], number> = {
-        clarity: 0.2,
-        ownership: 0.2,
-        action: 0.28,
-        evidence: 0.22,
-        reflection: 0.1,
-      };
-
-      return sum + dimension.score * weights[dimension.id];
-    }, 0) +
-      ([
-        safe.title,
-        safe.situation,
-        safe.task,
-        safe.action,
-        safe.result,
-        safe.reflection,
-      ].every((field) => field.length > 0)
-        ? 8
-        : 0) +
-      (safe.categoryTags.length > 0 ? 4 : 0) +
-      (!hasPlaceholder(
-        `${safe.title} ${safe.situation} ${safe.task} ${safe.action} ${safe.result} ${safe.reflection}`,
-      )
-        ? 4
-        : 0),
-  );
+  const scoringAudit = buildStoryScoringAudit(safe, dimensions);
+  const score = scoringAudit.final_score;
 
   const strengths: string[] = [];
   const misses: string[] = [];
@@ -3157,6 +3545,7 @@ export function reviewStarStory(story: Partial<StoryDraft>): StoryReview {
     verdict,
     verdictLabel: buildStoryVerdictLabel(score),
     dimensions,
+    scoringAudit,
     strengths: strengths.slice(0, 4),
     misses: [...new Set(misses)].slice(0, 6),
     upgradeMoves: [...new Set(upgradeMoves)].slice(0, 4),
