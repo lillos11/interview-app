@@ -6,9 +6,13 @@ import {
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildGameFilmBreakdown,
+  buildContextSwitchWhiplashDrill,
+  buildJargonAudit,
+  buildMetricRecallDeck,
   buildPrepMomentumDashboard,
   buildPrepTrendSeries,
   buildPromptAdherenceMatrix,
+  buildRedHerringDrill,
   buildReadinessForecast,
   buildStoryCalibrationReport,
   buildStoryPivotPack,
@@ -36,11 +40,13 @@ import {
   reviewInterviewAnswer,
   reviewStarStory,
   saveStarStory,
+  saveInterviewDebrief,
   scoreStarStory,
   STORY_SCORING_SYSTEM_PROMPT,
   toggleChecklistItem,
   updateCareerProfile,
   updatePitchPack,
+  evaluateRedHerringResponse,
 } from "../lib/interview";
 
 describe("interview prep helpers", () => {
@@ -393,6 +399,113 @@ describe("interview prep helpers", () => {
       "vision-and-strategy": 1,
       "earn-trust": 1,
     });
+  });
+
+  it("builds metric flash-test targets from saved STAR story metrics", () => {
+    const now = new Date("2026-03-03T12:00:00.000Z");
+    const progress = saveStarStory(
+      createInitialInterviewProgress(now),
+      {
+        competency: "ownership",
+        categoryTags: ["deliver-results"],
+        title: "Singles department turnaround",
+        situation:
+          "In Q4 2025, Singles pack rate was behind plan and defects were rising.",
+        task:
+          "I owned the turnaround for the department and had to stabilize quality.",
+        action:
+          "I reset coaching and improved pack rate from 80 percent to 110 percent of plan.",
+        result:
+          "Defects dropped 35 percent over 6 weeks and the new cadence became standard work.",
+        reflection:
+          "Since then I memorize the baseline, final rate, and defect delta before every loop.",
+      },
+      now,
+      () => "story-metrics",
+    );
+    const deck = buildMetricRecallDeck(progress.stories);
+
+    expect(deck.facts.length).toBeGreaterThan(0);
+    expect(
+      deck.facts.some(
+        (fact) =>
+          fact.drillType === "before_after" &&
+          fact.exactAnswer.includes("80 percent") &&
+          fact.exactAnswer.includes("110 percent"),
+      ),
+    ).toBe(true);
+  });
+
+  it("evaluates red-herring focus and flags candidates who take the bait", () => {
+    const question = INTERVIEW_QUESTIONS.find(
+      (entry) => entry.sourceCategoryId === "dive-deep",
+    )!;
+    const drill = buildRedHerringDrill(question, 0);
+    const focused = evaluateRedHerringResponse(
+      "I would stay on the customer risk, isolate the root cause, choose the metric, and explain the result.",
+      drill,
+    );
+    const distracted = evaluateRedHerringResponse(
+      `The ${drill.trapKeywords[0]} detail was interesting, but I also checked the root cause.`,
+      drill,
+    );
+
+    expect(drill.sourcePrompt).toBe(question.prompt);
+    expect(focused.passedFocusTest).toBe(true);
+    expect(distracted.passedFocusTest).toBe(false);
+    expect(distracted.distractionHits.length).toBeGreaterThan(0);
+  });
+
+  it("audits Amazon jargon and produces plain-language replacements", () => {
+    const report = buildJargonAudit(
+      "I moved the PA to the SLAM line to clear the CPT and improve UPH.",
+    );
+
+    expect(report.score).toBeLessThan(100);
+    expect(report.defects.map((defect) => defect.term)).toEqual(
+      expect.arrayContaining(["PA", "SLAM", "CPT", "UPH"]),
+    );
+    expect(report.translatedDraft).toContain("customer delivery cutoff time");
+  });
+
+  it("saves immediate interview debriefs into the vault", () => {
+    const now = new Date("2026-03-04T12:00:00.000Z");
+    const progress = saveInterviewDebrief(
+      createInitialInterviewProgress(now),
+      {
+        interviewerPersona: "L7 Bar Raiser",
+        questions:
+          "Tell me about a time you disagreed.\nTell me about a time you dove deep.",
+        storiesUsed: "Singles turnaround\nQuality reset",
+        notes: "They pushed hard on exact metrics.",
+      },
+      now,
+      () => "debrief-1",
+    );
+    const coerced = coerceInterviewProgress(progress)!;
+
+    expect(progress.debriefVault).toHaveLength(1);
+    expect(progress.debriefVault[0].questions).toHaveLength(2);
+    expect(coerced.debriefVault[0].interviewerPersona).toBe("L7 Bar Raiser");
+  });
+
+  it("builds context-switch whiplash drills from imported source-bank questions", () => {
+    const drill = buildContextSwitchWhiplashDrill(INTERVIEW_QUESTIONS, 2);
+
+    expect(drill.steps).toHaveLength(6);
+    expect(drill.steps.map((step) => step.mode)).toEqual([
+      "technical",
+      "behavioral",
+      "technical",
+      "behavioral",
+      "technical",
+      "behavioral",
+    ]);
+    expect(
+      drill.steps.every((step) =>
+        INTERVIEW_QUESTIONS.some((question) => question.id === step.questionId),
+      ),
+    ).toBe(true);
   });
 
   it("caps story scores at 100 and returns a detailed review", () => {

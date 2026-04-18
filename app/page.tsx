@@ -30,8 +30,12 @@ import {
   buildEnduranceLoopPlan,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
+  buildContextSwitchWhiplashDrill,
+  buildJargonAudit,
+  buildMetricRecallDeck,
   buildPrepMomentumDashboard,
   buildPromptAdherenceMatrix,
+  buildRedHerringDrill,
   buildReadinessForecast,
   buildStoryScorecardSuggestions,
   buildStoryCalibrationReport,
@@ -72,12 +76,15 @@ import {
   RED_FLAGS,
   reviewStarStory,
   saveStarStory,
+  saveInterviewDebrief,
   toggleChecklistItem,
   updateCareerProfile,
   updatePitchPack,
+  evaluateRedHerringResponse,
   type BarRaiserAmplificationField,
   type CompetencyId,
   type DrillRating,
+  type InterviewDebriefInput,
   type InterviewAnswerReview,
   type InterviewCareerProfile,
   type InterviewPrepProgress,
@@ -189,6 +196,16 @@ function createDefaultXRayText(): string {
   ].join(" ");
 }
 
+function createEmptyDebriefDraft(): InterviewDebriefInput {
+  return {
+    interviewerPersona: "",
+    questions: "",
+    storiesUsed: "",
+    notes: "",
+    followUpMoves: "",
+  };
+}
+
 const ratingMeta: Record<
   DrillRating,
   {
@@ -234,6 +251,10 @@ function classNames(
   ...values: Array<string | false | null | undefined>
 ): string {
   return values.filter(Boolean).join(" ");
+}
+
+function debriefTextValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value.join("\n") : value ?? "";
 }
 
 function buildStorySourceText(story: StoryDraft): string {
@@ -647,6 +668,16 @@ export default function HomePage() {
     createDefaultCandidatePrompt,
   );
   const [opsXRayText, setOpsXRayText] = useState(createDefaultXRayText);
+  const [jargonAuditText, setJargonAuditText] = useState(
+    "I moved the PA to the SLAM line to clear the CPT and improve UPH.",
+  );
+  const [redHerringAnswer, setRedHerringAnswer] = useState("");
+  const [metricFlashIndex, setMetricFlashIndex] = useState(0);
+  const [metricFlashRevealed, setMetricFlashRevealed] = useState(false);
+  const [debriefDraft, setDebriefDraft] = useState<InterviewDebriefInput>(() =>
+    createEmptyDebriefDraft(),
+  );
+  const [debriefNotice, setDebriefNotice] = useState<string | null>(null);
   const [enduranceSession, setEnduranceSession] =
     useState<EnduranceSessionState | null>(null);
   const starLabBuilderRef = useRef<HTMLElement | null>(null);
@@ -728,6 +759,18 @@ export default function HomePage() {
 
     return () => window.clearTimeout(timeout);
   }, [drillStartNotice]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !debriefNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDebriefNotice(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timeout);
+  }, [debriefNotice]);
 
   useEffect(() => {
     if (activeTab !== "drills" || drillRevealTick === 0) {
@@ -922,6 +965,34 @@ export default function HomePage() {
     () => buildTextXRay(opsXRayText),
     [opsXRayText],
   );
+  const jargonAuditReport = useMemo(
+    () => buildJargonAudit(jargonAuditText),
+    [jargonAuditText],
+  );
+  const metricRecallDeck = useMemo(
+    () => buildMetricRecallDeck(progress.stories),
+    [progress.stories],
+  );
+  const currentMetricFlashFact = metricRecallDeck.facts.length
+    ? metricRecallDeck.facts[
+        (metricFlashIndex + metricRecallDeck.facts.length) %
+          metricRecallDeck.facts.length
+      ]
+    : null;
+  const redHerringDrill = useMemo(
+    () =>
+      currentQuestionBankEntry
+        ? buildRedHerringDrill(currentQuestionBankEntry, questionBankIndex)
+        : null,
+    [currentQuestionBankEntry, questionBankIndex],
+  );
+  const redHerringEvaluation = useMemo(
+    () =>
+      redHerringDrill
+        ? evaluateRedHerringResponse(redHerringAnswer, redHerringDrill)
+        : null,
+    [redHerringAnswer, redHerringDrill],
+  );
 
   const drillHasStarted = drillQuestions.length > 0;
   const currentDrillQuestion =
@@ -1070,6 +1141,14 @@ export default function HomePage() {
   const enduranceLoopPlan = useMemo(
     () => buildEnduranceLoopPlan(filteredQuestions, progress),
     [filteredQuestions, progress],
+  );
+  const whiplashDrill = useMemo(
+    () =>
+      buildContextSwitchWhiplashDrill(
+        filteredQuestions.length ? filteredQuestions : INTERVIEW_QUESTIONS,
+        questionBankIndex,
+      ),
+    [filteredQuestions, questionBankIndex],
   );
 
   const nextMoves = useMemo(() => {
@@ -1254,6 +1333,63 @@ export default function HomePage() {
 
     setOpsXRayText(storySource || createDefaultXRayText());
     setActiveTab("ops_lab");
+  };
+
+  const loadCurrentStoryIntoJargonAudit = () => {
+    const storySource = buildStorySourceText(storyDraft);
+
+    setJargonAuditText(
+      storySource ||
+        "I moved the PA to the SLAM line to clear the CPT and improve UPH.",
+    );
+    setActiveTab("ops_lab");
+  };
+
+  const moveMetricFlash = (step: number) => {
+    if (!metricRecallDeck.facts.length) {
+      return;
+    }
+
+    setMetricFlashIndex(
+      (previous) =>
+        (previous + step + metricRecallDeck.facts.length) %
+        metricRecallDeck.facts.length,
+    );
+    setMetricFlashRevealed(false);
+  };
+
+  const updateDebriefDraft = (
+    field: keyof InterviewDebriefInput,
+    value: string,
+  ) => {
+    setDebriefDraft((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  const saveCurrentDebrief = () => {
+    const hasContent = [
+      debriefDraft.interviewerPersona,
+      debriefDraft.questions,
+      debriefDraft.storiesUsed,
+      debriefDraft.notes,
+    ].some((value) =>
+      Array.isArray(value) ? value.length > 0 : String(value ?? "").trim(),
+    );
+
+    if (!hasContent) {
+      setDebriefNotice(
+        "Add at least one question, story, interviewer detail, or note before saving the debrief.",
+      );
+      return;
+    }
+
+    setProgress((previous) =>
+      saveInterviewDebrief(previous, debriefDraft, new Date()),
+    );
+    setDebriefDraft(createEmptyDebriefDraft());
+    setDebriefNotice("Saved the debrief while the loop memory is still fresh.");
   };
 
   const revealCurrentDrill = () => {
@@ -4724,6 +4860,148 @@ export default function HomePage() {
             </div>
           </article>
 
+          <div className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Metric recall flash-test
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Lock exact numbers before pressure makes them slippery.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {metricRecallDeck.summary} {metricRecallDeck.weakSpot}
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {metricRecallDeck.facts.length} targets
+                </span>
+              </div>
+
+              {currentMetricFlashFact ? (
+                <div className="mt-5 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-900">
+                      {currentMetricFlashFact.drillType === "before_after"
+                        ? "Before / after"
+                        : "Metric only"}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {currentMetricFlashFact.storyTitle}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {currentMetricFlashFact.field}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-xl font-semibold leading-8 text-slate-950">
+                    {currentMetricFlashFact.recallPrompt}
+                  </p>
+                  {metricFlashRevealed ? (
+                    <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-white">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-200">
+                        Exact answer
+                      </p>
+                      <p className="mt-2 text-lg font-semibold">
+                        {currentMetricFlashFact.exactAnswer}
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-white/78">
+                        Source line: {currentMetricFlashFact.context}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                      Say the exact number out loud before revealing. If you say
+                      “around” or “I think,” count it as a miss.
+                    </div>
+                  )}
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setMetricFlashRevealed((value) => !value)}
+                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      {metricFlashRevealed ? "Hide answer" : "Reveal exact answer"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveMetricFlash(1)}
+                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                    >
+                      Next metric
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 p-5 text-sm leading-6 text-slate-600">
+                  Save at least one STAR story with real percentages, dollar
+                  amounts, time windows, or baseline-to-final metrics to unlock
+                  metric flash-tests.
+                </div>
+              )}
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Context-switch whiplash drill
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Jump from hard analysis to high-EQ leadership without freezing.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {whiplashDrill.summary}
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {whiplashDrill.targetMinutes} min
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {whiplashDrill.steps.map((step, index) => (
+                  <div
+                    key={step.id}
+                    className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={classNames(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                          step.mode === "technical"
+                            ? "bg-slate-950 text-white"
+                            : "bg-red-100 text-red-900",
+                        )}
+                      >
+                        {index + 1}. {step.mode}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {step.categoryLabel}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-950">
+                      {step.prompt}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      {step.switchCue}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Score on: {step.scoringFocus}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openQuestionInBarRaiser(step.questionId)}
+                      className="mt-4 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Open this rep
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+
           <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -5520,6 +5798,199 @@ export default function HomePage() {
             </div>
           </article>
 
+          <div className="grid gap-6 2xl:grid-cols-[1fr_1fr]">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Red herring injector
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Practice ignoring noise without losing the root cause.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    The base question still comes from your imported Amazon
+                    bank. The irrelevant detail is there to test whether you
+                    waste words on non-signal.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    rotateQuestionBank(1);
+                    setRedHerringAnswer("");
+                  }}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                >
+                  New trap
+                </button>
+              </div>
+
+              {redHerringDrill ? (
+                <>
+                  <div className="mt-5 rounded-[24px] bg-slate-950 p-5 text-white">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-200">
+                      Injected prompt
+                    </p>
+                    <p className="mt-3 text-lg leading-8">
+                      {redHerringDrill.injectedPrompt}
+                    </p>
+                    <p className="mt-4 text-sm leading-6 text-white/70">
+                      Rule: {redHerringDrill.scoringRule}
+                    </p>
+                  </div>
+                  <label className="mt-4 grid gap-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Paste or type your answer
+                    </span>
+                    <textarea
+                      rows={6}
+                      value={redHerringAnswer}
+                      onChange={(event) =>
+                        setRedHerringAnswer(event.target.value)
+                      }
+                      placeholder="Answer the real question. Ignore the irrelevant detail."
+                    />
+                  </label>
+                  {redHerringAnswer.trim() && redHerringEvaluation ? (
+                    <div
+                      className={classNames(
+                        "mt-4 rounded-[22px] border p-4",
+                        redHerringEvaluation.passedFocusTest
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                          : "border-red-200 bg-red-50 text-red-950",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold">
+                          Focus score {redHerringEvaluation.score}
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold">
+                          {redHerringEvaluation.passedFocusTest
+                            ? "Ignored trap"
+                            : "Needs repair"}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold leading-6">
+                        {redHerringEvaluation.verdict}
+                      </p>
+                      <p className="mt-2 text-sm leading-6">
+                        {redHerringEvaluation.coachingMove}
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 p-5 text-sm leading-6 text-slate-600">
+                  Select an Amazon family/category with at least one prompt to
+                  generate a red-herring drill.
+                </div>
+              )}
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Acronym and jargon auditor
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Translate Amazon shorthand into universal business language.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    If a cross-functional interviewer cannot understand it, it
+                    is a defect even if everyone on your floor knows the term.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadCurrentStoryIntoJargonAudit}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+                >
+                  Load current story
+                </button>
+              </div>
+
+              <label className="mt-4 grid gap-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Jargon input
+                </span>
+                <textarea
+                  rows={6}
+                  value={jargonAuditText}
+                  onChange={(event) => setJargonAuditText(event.target.value)}
+                  placeholder="Paste a story or answer with internal acronyms."
+                />
+              </label>
+
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/82 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-950">
+                    {jargonAuditReport.summary}
+                  </p>
+                  <span
+                    className={classNames(
+                      "rounded-full px-3 py-1 text-xs font-semibold",
+                      jargonAuditReport.score >= 85
+                        ? "bg-emerald-100 text-emerald-900"
+                        : jargonAuditReport.score >= 70
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-red-100 text-red-900",
+                    )}
+                  >
+                    Clarity {jargonAuditReport.score}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {jargonAuditReport.defects.length ? (
+                    jargonAuditReport.defects.map((defect) => (
+                      <div
+                        key={defect.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={classNames(
+                              "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                              defect.severity === "critical"
+                                ? "bg-red-100 text-red-900"
+                                : "bg-amber-100 text-amber-900",
+                            )}
+                          >
+                            {defect.severity}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-950">
+                            {defect.term}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {defect.explanation}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">
+                          Say: {defect.plainLanguage}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 p-3 text-sm leading-6 text-slate-600">
+                      No jargon defects found in this input.
+                    </div>
+                  )}
+                </div>
+                {jargonAuditReport.defects.length ? (
+                  <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-200">
+                      Plain-language draft
+                    </p>
+                    <p className="mt-2 text-white/86">
+                      {jargonAuditReport.translatedDraft}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </article>
+          </div>
+
           <div className="grid gap-6 2xl:grid-cols-[1.04fr_0.96fr]">
             <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
               <div className="flex items-center justify-between gap-3">
@@ -5854,6 +6325,148 @@ export default function HomePage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Immediate debrief vault
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Capture the real loop before adrenaline wipes the details.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    Brain-dump the questions, interviewer persona, and stories
+                    used as soon as the call ends. This becomes your proprietary
+                    prep data for the next jump.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {progress.debriefVault.length} saved
+                </span>
+              </div>
+
+              {debriefNotice ? (
+                <div className="mt-4 rounded-[22px] border border-cyan-200 bg-cyan-50 p-4 text-sm font-semibold leading-6 text-cyan-950">
+                  {debriefNotice}
+                </div>
+              ) : null}
+
+              <div className="mt-5 grid gap-4">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Interviewer persona
+                  </span>
+                  <input
+                    value={debriefTextValue(debriefDraft.interviewerPersona)}
+                    onChange={(event) =>
+                      updateDebriefDraft(
+                        "interviewerPersona",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="L6 Ops Manager, Bar Raiser, HRBP, Finance Partner..."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Exact questions asked
+                  </span>
+                  <textarea
+                    rows={5}
+                    value={debriefTextValue(debriefDraft.questions)}
+                    onChange={(event) =>
+                      updateDebriefDraft("questions", event.target.value)
+                    }
+                    placeholder="One question per line. Do not clean it up yet. Capture the raw wording."
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Stories used
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={debriefTextValue(debriefDraft.storiesUsed)}
+                    onChange={(event) =>
+                      updateDebriefDraft("storiesUsed", event.target.value)
+                    }
+                    placeholder="Which stories did you use? Which one repeated too much?"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Raw notes and follow-up risk
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={debriefTextValue(debriefDraft.notes)}
+                    onChange={(event) =>
+                      updateDebriefDraft("notes", event.target.value)
+                    }
+                    placeholder="Where did they push? Where did you hesitate? What would you tighten next time?"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={saveCurrentDebrief}
+                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+                >
+                  Save debrief now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebriefDraft(createEmptyDebriefDraft())}
+                  className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {progress.debriefVault.length ? (
+                  progress.debriefVault.slice(0, 4).map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+                          {entry.interviewerPersona}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {new Date(entry.date).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {entry.questions.slice(0, 3).map((question) => (
+                          <div
+                            key={question}
+                            className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-700"
+                          >
+                            {question}
+                          </div>
+                        ))}
+                      </div>
+                      {entry.followUpMoves.length ? (
+                        <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm leading-6 text-red-950">
+                          Next move: {entry.followUpMoves[0]}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                    No real-loop debriefs saved yet. Open this immediately
+                    after an interview, even from your phone, and dump the raw
+                    memory before it fades.
+                  </div>
+                )}
               </div>
             </article>
           </div>

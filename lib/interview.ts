@@ -644,11 +644,103 @@ export interface TextXRayReport {
   windows: XRayWindow[];
 }
 
+export interface StoryMetricFact {
+  id: string;
+  storyId: string;
+  storyTitle: string;
+  field: keyof Pick<
+    StoryDraft,
+    "situation" | "task" | "action" | "result" | "reflection"
+  >;
+  metricValues: string[];
+  context: string;
+  recallPrompt: string;
+  exactAnswer: string;
+  drillType: "metric_only" | "before_after";
+}
+
+export interface MetricRecallDeck {
+  facts: StoryMetricFact[];
+  summary: string;
+  weakSpot: string;
+}
+
+export interface RedHerringDrill {
+  questionId: string;
+  questionTitle: string;
+  sourcePrompt: string;
+  injectedPrompt: string;
+  redHerring: string;
+  trapKeywords: string[];
+  scoringRule: string;
+  recoveryCue: string;
+}
+
+export interface RedHerringEvaluation {
+  score: number;
+  passedFocusTest: boolean;
+  distractionHits: string[];
+  verdict: string;
+  coachingMove: string;
+}
+
+export interface JargonAuditDefect {
+  id: string;
+  term: string;
+  severity: "critical" | "watch";
+  explanation: string;
+  plainLanguage: string;
+}
+
+export interface JargonAuditReport {
+  score: number;
+  defects: JargonAuditDefect[];
+  translatedDraft: string;
+  summary: string;
+}
+
 export interface PrepTrendPoint {
   day: string;
   label: string;
   score: number | null;
   packRate: number | null;
+}
+
+export interface InterviewDebriefRecord {
+  id: string;
+  date: string;
+  interviewerPersona: string;
+  questions: string[];
+  storiesUsed: string[];
+  notes: string;
+  followUpMoves: string[];
+}
+
+export interface InterviewDebriefInput {
+  id?: string;
+  date?: string;
+  interviewerPersona?: string;
+  questions?: string | string[];
+  storiesUsed?: string | string[];
+  notes?: string;
+  followUpMoves?: string | string[];
+}
+
+export interface ContextSwitchWhiplashStep {
+  id: string;
+  mode: "technical" | "behavioral";
+  questionId: string;
+  questionTitle: string;
+  categoryLabel: string;
+  prompt: string;
+  switchCue: string;
+  scoringFocus: string;
+}
+
+export interface ContextSwitchWhiplashDrill {
+  summary: string;
+  targetMinutes: number;
+  steps: ContextSwitchWhiplashStep[];
 }
 
 export interface InterviewPrepProgress {
@@ -665,6 +757,7 @@ export interface InterviewPrepProgress {
   pitch: PitchPack;
   careerProfile: InterviewCareerProfile;
   checklistDoneIds: string[];
+  debriefVault: InterviewDebriefRecord[];
 }
 
 export const INTERVIEW_STAGES: readonly InterviewStage[] = [
@@ -1312,6 +1405,7 @@ export function getInterviewQuestionById(
 
 const HISTORY_LIMIT = 24;
 const BAR_RAISER_HISTORY_LIMIT = 24;
+const DEBRIEF_VAULT_LIMIT = 12;
 const STORY_LIMIT = 12;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FILLER_PATTERN =
@@ -6198,6 +6292,474 @@ export function buildCurveballPack(question: InterviewQuestion): CurveballPack {
   };
 }
 
+const METRIC_VALUE_PATTERN =
+  /\$?\d[\d,.]*(?:\.\d+)?\s*(?:%|percent|percentage points|bps|basis points|hours?|days?|weeks?|months?|years?|associates?|people|shifts?|units?|defects?|tickets?|customers?|orders?|packages?|dollars?|minutes?|seconds?)?/gi;
+const BEFORE_AFTER_PATTERN =
+  /\b(?:from|baseline(?:\s+\w+){0,4}\s+(?:was|at)?|started\s+at)\s+(\$?\d[\d,.]*(?:\.\d+)?\s*(?:%|percent|hours?|days?|weeks?|months?|years?|units?|defects?|tickets?|customers?|orders?|packages?)?)\s+(?:to|and\s+(?:ended|finished)\s+at|final(?:\s+\w+){0,4}\s+(?:was|at)?)\s+(\$?\d[\d,.]*(?:\.\d+)?\s*(?:%|percent|hours?|days?|weeks?|months?|years?|units?|defects?|tickets?|customers?|orders?|packages?)?)/i;
+
+function normalizeMetricValue(value: string): string {
+  return value.replace(/\s+/g, " ").replace(/[.,;:]$/g, "").trim();
+}
+
+function extractMetricValues(value: string): string[] {
+  return uniqueStrings(
+    (value.match(METRIC_VALUE_PATTERN) ?? [])
+      .map(normalizeMetricValue)
+      .filter((metric) => /\d/.test(metric)),
+  );
+}
+
+function buildMetricFieldFacts(
+  story: StarStory,
+  field: StoryMetricFact["field"],
+): StoryMetricFact[] {
+  const source = story[field];
+  const segments = extractSentenceLikeSegments(source);
+  const facts: StoryMetricFact[] = [];
+
+  for (const [index, segment] of segments.entries()) {
+    const metricValues = extractMetricValues(segment);
+
+    if (!metricValues.length) {
+      continue;
+    }
+
+    const beforeAfter = segment.match(BEFORE_AFTER_PATTERN);
+    const storyTitle = story.title || "Untitled story";
+
+    if (beforeAfter?.[1] && beforeAfter?.[2]) {
+      const baseline = normalizeMetricValue(beforeAfter[1]);
+      const final = normalizeMetricValue(beforeAfter[2]);
+      facts.push({
+        id: `${story.id}-${field}-${index}-before-after`,
+        storyId: story.id,
+        storyTitle,
+        field,
+        metricValues: [baseline, final],
+        context: segment,
+        recallPrompt: `In "${storyTitle}", what were the exact baseline and final metrics?`,
+        exactAnswer: `${baseline} -> ${final}`,
+        drillType: "before_after",
+      });
+      continue;
+    }
+
+    facts.push({
+      id: `${story.id}-${field}-${index}-metric`,
+      storyId: story.id,
+      storyTitle,
+      field,
+      metricValues,
+      context: segment,
+      recallPrompt: `In "${storyTitle}", what exact metric did you cite in the ${field} section?`,
+      exactAnswer: metricValues.join(", "),
+      drillType: "metric_only",
+    });
+  }
+
+  return facts;
+}
+
+export function buildMetricRecallDeck(
+  stories: readonly StarStory[],
+): MetricRecallDeck {
+  const facts = stories.flatMap((story) =>
+    (["situation", "task", "action", "result", "reflection"] as const).flatMap(
+      (field) => buildMetricFieldFacts(story, field),
+    ),
+  );
+  const beforeAfterCount = facts.filter(
+    (fact) => fact.drillType === "before_after",
+  ).length;
+  const storyCount = new Set(facts.map((fact) => fact.storyId)).size;
+
+  return {
+    facts,
+    summary: facts.length
+      ? `${facts.length} metric recall target${facts.length === 1 ? "" : "s"} extracted across ${storyCount} saved stor${storyCount === 1 ? "y" : "ies"}.`
+      : "No hard metrics were found in saved stories yet.",
+    weakSpot: facts.length
+      ? beforeAfterCount < Math.ceil(facts.length / 3)
+        ? "Most metrics are isolated numbers. Add more baseline-to-final proof so you can defend movement, not just cite activity."
+        : "You have enough before/after targets to run exact-number flash tests."
+      : "Add percentages, dollar amounts, time windows, or before/after metrics to saved STAR stories before running this drill.",
+  };
+}
+
+const RED_HERRING_TRAPS = [
+  {
+    redHerring:
+      "Irrelevant constraint: the marketing team was wearing blue shirts that day.",
+    trapKeywords: ["marketing", "blue", "shirts"],
+  },
+  {
+    redHerring:
+      "Irrelevant constraint: the conference room had a broken coffee machine.",
+    trapKeywords: ["coffee", "machine", "conference"],
+  },
+  {
+    redHerring:
+      "Irrelevant constraint: someone mentioned the parking lot was being repainted.",
+    trapKeywords: ["parking", "repainted", "paint"],
+  },
+] as const;
+
+export function buildRedHerringDrill(
+  question: InterviewQuestion,
+  seed = 0,
+): RedHerringDrill {
+  const trap =
+    RED_HERRING_TRAPS[
+      Math.abs(seed + question.id.length) % RED_HERRING_TRAPS.length
+    ] ?? RED_HERRING_TRAPS[0];
+
+  return {
+    questionId: question.id,
+    questionTitle: question.title,
+    sourcePrompt: question.prompt,
+    injectedPrompt: `${question.prompt} ${trap.redHerring}`,
+    redHerring: trap.redHerring,
+    trapKeywords: [...trap.trapKeywords],
+    scoringRule:
+      "A focused answer should ignore the irrelevant detail and return to the operational problem, root cause, action, and measurable result.",
+    recoveryCue:
+      "If a detail does not affect the customer, safety, quality, people, cost, or speed, do not spend words on it.",
+  };
+}
+
+export function evaluateRedHerringResponse(
+  answer: string,
+  drill: RedHerringDrill,
+): RedHerringEvaluation {
+  const normalized = answer.toLowerCase();
+  const distractionHits = drill.trapKeywords.filter((keyword) =>
+    normalized.includes(keyword.toLowerCase()),
+  );
+  const hasOperationalSignal =
+    countMatches(answer, OUTCOME_PATTERN) > 0 ||
+    countMatches(answer, STAKES_PATTERN) > 0 ||
+    countMatches(answer, TRADEOFF_PATTERN) > 0;
+  const passedFocusTest = distractionHits.length === 0 && hasOperationalSignal;
+
+  return {
+    score: passedFocusTest ? 100 : distractionHits.length ? 45 : 70,
+    passedFocusTest,
+    distractionHits,
+    verdict: passedFocusTest
+      ? "Clean focus. You ignored the noise and stayed on operational signal."
+      : distractionHits.length
+        ? "You took the bait. A Bar Raiser would see that as weak signal filtering."
+        : "You avoided the red herring, but the answer still needs more operating signal.",
+    coachingMove: distractionHits.length
+      ? `Delete every reference to ${distractionHits.join(", ")} and answer the original question with root cause, decision, and result.`
+      : "Add the measurable problem, the decision rule, and the result without mentioning the irrelevant constraint.",
+  };
+}
+
+const JARGON_TRANSLATIONS = [
+  {
+    term: "PA",
+    pattern: /\bPA\b/g,
+    plainLanguage: "frontline process assistant/team lead",
+    explanation:
+      "PA is internal shorthand. A cross-functional interviewer may not know the role scope.",
+  },
+  {
+    term: "SLAM",
+    pattern: /\bSLAM(?:\s+line)?\b/gi,
+    plainLanguage: "package verification and labeling area",
+    explanation:
+      "SLAM is fulfillment-center jargon. Translate the process so the business impact is clear.",
+  },
+  {
+    term: "CPT",
+    pattern: /\bCPT\b/g,
+    plainLanguage: "customer delivery cutoff time",
+    explanation:
+      "CPT is internal operational shorthand. Say what deadline or customer promise was at risk.",
+  },
+  {
+    term: "TOT",
+    pattern: /\bTOT\b/g,
+    plainLanguage: "time away from assigned work",
+    explanation:
+      "TOT can sound punitive or unclear. Translate it into the operational behavior you were managing.",
+  },
+  {
+    term: "VTO",
+    pattern: /\bVTO\b/g,
+    plainLanguage: "voluntary time off",
+    explanation:
+      "VTO is an internal labor-planning acronym. Spell it out and connect it to staffing impact.",
+  },
+  {
+    term: "UPH",
+    pattern: /\bUPH\b/g,
+    plainLanguage: "units processed per hour",
+    explanation:
+      "UPH is useful, but only if translated into productivity language.",
+  },
+  {
+    term: "WIP",
+    pattern: /\bWIP\b/g,
+    plainLanguage: "work waiting in the process",
+    explanation:
+      "WIP is a lean operations acronym. Translate it for non-operations interviewers.",
+  },
+  {
+    term: "AFE",
+    pattern: /\bAFE\b/g,
+    plainLanguage: "multi-item packing area",
+    explanation:
+      "AFE is a department acronym. Explain the process path instead of assuming shared context.",
+  },
+  {
+    term: "FC",
+    pattern: /\bFC\b/g,
+    plainLanguage: "fulfillment center",
+    explanation:
+      "FC is common internally but should still be expanded for a mixed panel.",
+  },
+] as const;
+
+export function buildJargonAudit(text: string): JargonAuditReport {
+  let translatedDraft = text;
+  const defects: JargonAuditDefect[] = [];
+
+  for (const entry of JARGON_TRANSLATIONS) {
+    const matches = text.match(entry.pattern);
+
+    if (!matches?.length) {
+      continue;
+    }
+
+    defects.push({
+      id: `jargon-${entry.term.toLowerCase()}`,
+      term: entry.term,
+      severity: "critical",
+      explanation: entry.explanation,
+      plainLanguage: entry.plainLanguage,
+    });
+    translatedDraft = translatedDraft.replace(
+      entry.pattern,
+      entry.plainLanguage,
+    );
+  }
+
+  const knownTerms = new Set<string>(
+    JARGON_TRANSLATIONS.map((entry) => entry.term),
+  );
+  const genericAcronyms = uniqueStrings(text.match(/\b[A-Z]{2,5}\b/g) ?? [])
+    .filter((term) => !knownTerms.has(term))
+    .filter((term) => !["STAR", "AWS", "MBA", "ROI"].includes(term));
+
+  for (const term of genericAcronyms.slice(0, 4)) {
+    defects.push({
+      id: `jargon-unknown-${term.toLowerCase()}`,
+      term,
+      severity: "watch",
+      explanation:
+        "This acronym may be clear to you, but the panel may not share the same internal context.",
+      plainLanguage: `Spell out ${term} the first time, then use the acronym only if needed.`,
+    });
+  }
+
+  const criticalCount = defects.filter(
+    (defect) => defect.severity === "critical",
+  ).length;
+  const score = clampScore(100 - criticalCount * 18 - genericAcronyms.length * 8);
+
+  return {
+    score,
+    defects,
+    translatedDraft,
+    summary: defects.length
+      ? `${defects.length} jargon defect${defects.length === 1 ? "" : "s"} found. Translate before using this in a cross-functional loop.`
+      : "No obvious internal jargon was detected.",
+  };
+}
+
+function splitDebriefLines(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueStrings(value).slice(0, 12);
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return uniqueStrings(
+    value
+      .split(/\n|;/)
+      .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
+      .filter(Boolean),
+  ).slice(0, 12);
+}
+
+function sanitizeInterviewDebriefRecord(
+  input: InterviewDebriefInput,
+  now: Date,
+  createId: () => string,
+): InterviewDebriefRecord {
+  const questions = splitDebriefLines(input.questions);
+  const storiesUsed = splitDebriefLines(input.storiesUsed);
+  const notes = typeof input.notes === "string" ? input.notes.trim() : "";
+  const followUpMoves =
+    splitDebriefLines(input.followUpMoves).length > 0
+      ? splitDebriefLines(input.followUpMoves)
+      : [
+          questions.length
+            ? "Map each remembered question to a saved story and identify the weak answer."
+            : "Reconstruct the questions while the interview is still fresh.",
+          storiesUsed.length
+            ? "Mark which stories repeated and which LPs still need backup proof."
+            : "List the stories used so the next loop does not accidentally over-repeat them.",
+        ];
+
+  return {
+    id:
+      typeof input.id === "string" && input.id.trim().length > 0
+        ? input.id
+        : createId(),
+    date: isValidDate(input.date) ? input.date : now.toISOString(),
+    interviewerPersona:
+      typeof input.interviewerPersona === "string" &&
+      input.interviewerPersona.trim().length > 0
+        ? input.interviewerPersona.trim()
+        : "Unknown interviewer",
+    questions,
+    storiesUsed,
+    notes,
+    followUpMoves,
+  };
+}
+
+export function saveInterviewDebrief(
+  progress: InterviewPrepProgress,
+  input: InterviewDebriefInput,
+  now: Date = new Date(),
+  createId: () => string = () =>
+    `debrief-${Math.random().toString(36).slice(2, 10)}`,
+): InterviewPrepProgress {
+  const debrief = sanitizeInterviewDebriefRecord(input, now, createId);
+  const existingIndex = progress.debriefVault.findIndex(
+    (entry) => entry.id === debrief.id,
+  );
+  const nextVault = [...progress.debriefVault];
+
+  if (existingIndex >= 0) {
+    nextVault[existingIndex] = debrief;
+  } else {
+    nextVault.unshift(debrief);
+  }
+
+  return touchPracticeDay(
+    {
+      ...progress,
+      debriefVault: nextVault
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+        .slice(0, DEBRIEF_VAULT_LIMIT),
+    },
+    now,
+  );
+}
+
+const TECHNICAL_WHIPLASH_CATEGORIES = new Set([
+  "dive-deep",
+  "interpretation-and-analysis",
+  "judgment-and-decision-making",
+  "plan-and-prioritize",
+  "frugality",
+  "invent-and-simplify",
+]);
+const BEHAVIORAL_WHIPLASH_CATEGORIES = new Set([
+  "earn-trust",
+  "hire-and-develop-the-best",
+  "team-and-people-management",
+  "strive-to-be-earth-s-best-employer",
+  "have-backbone-disagree-and-commit",
+  "customer-obsession",
+]);
+
+function rotatePool<T>(items: readonly T[], seed: number): T[] {
+  if (!items.length) {
+    return [];
+  }
+
+  const offset = Math.abs(seed) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
+export function buildContextSwitchWhiplashDrill(
+  questions: readonly InterviewQuestion[],
+  seed = 0,
+): ContextSwitchWhiplashDrill {
+  const source = questions.length ? questions : INTERVIEW_QUESTIONS;
+  const technicalPool = rotatePool(
+    source.filter(
+      (question) =>
+        question.competency === "technical_depth" ||
+        question.competency === "problem_solving" ||
+        TECHNICAL_WHIPLASH_CATEGORIES.has(question.sourceCategoryId),
+    ),
+    seed,
+  );
+  const behavioralPool = rotatePool(
+    source.filter(
+      (question) =>
+        question.competency === "leadership" ||
+        question.competency === "stakeholder_management" ||
+        question.competency === "adaptability" ||
+        BEHAVIORAL_WHIPLASH_CATEGORIES.has(question.sourceCategoryId),
+    ),
+    seed + 1,
+  );
+  const fallbackPool = rotatePool(source, seed + 2);
+  const steps: ContextSwitchWhiplashStep[] = [];
+
+  for (let index = 0; index < 6; index += 1) {
+    const mode: ContextSwitchWhiplashStep["mode"] =
+      index % 2 === 0 ? "technical" : "behavioral";
+    const pool =
+      mode === "technical"
+        ? technicalPool.length
+          ? technicalPool
+          : fallbackPool
+        : behavioralPool.length
+          ? behavioralPool
+          : fallbackPool;
+    const question = pool[Math.floor(index / 2) % pool.length];
+
+    if (!question) {
+      continue;
+    }
+
+    steps.push({
+      id: `whiplash-${index + 1}-${question.id}`,
+      mode,
+      questionId: question.id,
+      questionTitle: question.title,
+      categoryLabel: question.sourceCategoryLabel,
+      prompt: question.prompt,
+      switchCue:
+        mode === "technical"
+          ? "Switch cold into root cause, metric, mechanism, and tradeoff."
+          : "Switch cold into trust, conflict, coaching, ownership, and reflection.",
+      scoringFocus:
+        mode === "technical"
+          ? "Can you explain the operating logic without rambling or losing the metric?"
+          : "Can you show emotional judgment without getting vague or over-explaining?",
+    });
+  }
+
+  return {
+    summary:
+      "Six rapid switches between analytical and high-EQ prompts. The goal is fast mental gear-shifting without freezing.",
+    targetMinutes: 5,
+    steps,
+  };
+}
+
 export function getTopPassBlockers(
   progress: InterviewPrepProgress,
   selectedFamily?: InterviewSourceFamily,
@@ -6367,6 +6929,7 @@ export function createInitialInterviewProgress(
     },
     careerProfile: sanitizeCareerProfile(undefined),
     checklistDoneIds: [],
+    debriefVault: [],
   };
 }
 
@@ -6526,6 +7089,45 @@ export function coerceInterviewProgress(
         .filter((entry): entry is BarRaiserReviewRecord => entry !== null)
         .slice(0, BAR_RAISER_HISTORY_LIMIT)
     : [];
+  const debriefVault = Array.isArray(input.debriefVault)
+    ? input.debriefVault
+        .filter(
+          (entry): entry is Record<string, unknown> =>
+            Boolean(entry) && typeof entry === "object",
+        )
+        .map((entry) =>
+          sanitizeInterviewDebriefRecord(
+            {
+              id: typeof entry.id === "string" ? entry.id : undefined,
+              date: typeof entry.date === "string" ? entry.date : undefined,
+              interviewerPersona:
+                typeof entry.interviewerPersona === "string"
+                  ? entry.interviewerPersona
+                  : undefined,
+              questions: Array.isArray(entry.questions)
+                ? uniqueStrings(entry.questions)
+                : undefined,
+              storiesUsed: Array.isArray(entry.storiesUsed)
+                ? uniqueStrings(entry.storiesUsed)
+                : undefined,
+              notes: typeof entry.notes === "string" ? entry.notes : undefined,
+              followUpMoves: Array.isArray(entry.followUpMoves)
+                ? uniqueStrings(entry.followUpMoves)
+                : undefined,
+            },
+            fallback.updatedAt ? new Date(fallback.updatedAt) : new Date(),
+            () => `debrief-${Math.random().toString(36).slice(2, 10)}`,
+          ),
+        )
+        .filter(
+          (entry) =>
+            entry.questions.length > 0 ||
+            entry.storiesUsed.length > 0 ||
+            entry.notes.length > 0,
+        )
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+        .slice(0, DEBRIEF_VAULT_LIMIT)
+    : [];
 
   return {
     version: 1,
@@ -6551,6 +7153,7 @@ export function coerceInterviewProgress(
     checklistDoneIds: uniqueStrings(input.checklistDoneIds).filter((id) =>
       GAME_DAY_CHECKLIST.some((item) => item.id === id),
     ),
+    debriefVault,
   };
 }
 
