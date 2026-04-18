@@ -31,7 +31,6 @@ import {
   buildEliteStoryDraft,
   buildEliteStoryPolish,
   buildPrepMomentumDashboard,
-  buildPrepTrendSeries,
   buildPromptAdherenceMatrix,
   buildReadinessForecast,
   buildStoryScorecardSuggestions,
@@ -84,7 +83,6 @@ import {
   type InterviewPrepProgress,
   type InterviewQuestion,
   type InterviewerLensId,
-  type PrepTrendPoint,
   type InterviewSourceFamily,
   type PrepTabTarget,
   type StoryPivotNode,
@@ -297,35 +295,6 @@ function renderXRayCanvas(text: string, report: TextXRayReport) {
   }
 
   return <p className="text-sm leading-7 text-slate-900">{segments}</p>;
-}
-
-function renderTrendPath(
-  points: PrepTrendPoint[],
-  key: "score" | "packRate",
-  width: number,
-  height: number,
-): string {
-  const series = points
-    .map((point) => point[key])
-    .filter((value): value is number => value !== null);
-
-  if (!series.length) {
-    return "";
-  }
-
-  const min = Math.min(...series);
-  const max = Math.max(...series);
-  const range = Math.max(1, max - min);
-
-  return points
-    .map((point, index) => {
-      const value = point[key] ?? min;
-      const x =
-        points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
-      const y = height - ((value - min) / range) * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
 }
 
 function PrepDeckStoryCard({
@@ -935,10 +904,6 @@ export default function HomePage() {
   );
   const readinessForecast = useMemo(
     () => buildReadinessForecast(progress),
-    [progress],
-  );
-  const prepTrendSeries = useMemo(
-    () => buildPrepTrendSeries(progress),
     [progress],
   );
   const storySaturationReport = useMemo(
@@ -5827,144 +5792,6 @@ export default function HomePage() {
                 </div>
               </article>
 
-              <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Predictive prep terminal
-                    </p>
-                    <h3 className="mt-1 text-xl font-semibold text-slate-950">
-                      Fourteen-day trailing signal score and pack rate.
-                    </h3>
-                  </div>
-                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
-                    14-day view
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-[24px] bg-slate-950 p-4 text-white">
-                  {prepTrendSeries.some(
-                    (point) => point.score !== null || point.packRate !== null,
-                  ) ? (
-                    <svg
-                      viewBox="0 0 440 150"
-                      className="h-[180px] w-full"
-                      role="img"
-                      aria-label="Prep signal chart"
-                    >
-                      {Array.from({ length: 5 }, (_, index) => (
-                        <line
-                          key={`grid-${index}`}
-                          x1="0"
-                          x2="440"
-                          y1={20 + index * 25}
-                          y2={20 + index * 25}
-                          stroke="rgba(255,255,255,0.08)"
-                          strokeWidth="1"
-                        />
-                      ))}
-                      <path
-                        d={renderTrendPath(prepTrendSeries, "score", 440, 120)}
-                        fill="none"
-                        stroke="#f87171"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d={renderTrendPath(prepTrendSeries, "packRate", 440, 120)}
-                        fill="none"
-                        stroke="#f8fafc"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeDasharray="6 4"
-                      />
-                    </svg>
-                  ) : (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/68">
-                      Log a few Bar Raiser reviews and the trailing score and pack
-                      rate curves will appear here.
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
-                    <span className="rounded-full bg-rose-500/20 px-3 py-1 text-rose-100">
-                      Red line: harsh review score
-                    </span>
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-white/80">
-                      White dashed line: pack rate
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Latest score
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-slate-950">
-                      {prepTrendSeries
-                        .slice()
-                        .reverse()
-                        .find((point) => point.score !== null)?.score ?? "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Latest pack rate
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-slate-950">
-                      {prepTrendSeries
-                        .slice()
-                        .reverse()
-                        .find((point) => point.packRate !== null)?.packRate ?? "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Memory decay watch
-                    </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">
-                      {prepTrendSeries.filter((point) => point.score !== null)
-                        .length < 3
-                        ? "Too little data yet. Keep logging reps."
-                        : "Use the chart to spot flatlining or slipping signal before the loop."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  {prepTrendSeries.slice(-6).map((point) => (
-                    <div
-                      key={point.day}
-                      className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-950">
-                          {point.label}
-                        </p>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          {point.day}
-                        </span>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                        <div className="flex items-center justify-between gap-3">
-                          <span>Score</span>
-                          <span className="font-semibold text-slate-950">
-                            {point.score ?? "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span>Pack rate</span>
-                          <span className="font-semibold text-slate-950">
-                            {point.packRate ?? "--"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
             </div>
           </div>
         </section>
