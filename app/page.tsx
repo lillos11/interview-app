@@ -22,6 +22,7 @@ import {
   buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
+  buildStoryScorecardSuggestions,
   buildStoryPressureTest,
   buildPitchPreview,
   buildStarCoachTips,
@@ -674,6 +675,10 @@ export default function HomePage() {
     () => buildBarRaiserAmplification(storyDraft),
     [storyDraft],
   );
+  const storyScorecardSuggestions = useMemo(
+    () => buildStoryScorecardSuggestions(storyDraft),
+    [storyDraft],
+  );
   const liveStoryPressureTest = useMemo(
     () => buildStoryPressureTest(storyDraft),
     [storyDraft],
@@ -1086,6 +1091,20 @@ export default function HomePage() {
     }));
     setStoryLoadNotice(
       `Applied Bar Raiser amplify to ${upgrade?.label.toLowerCase() ?? field}.`,
+    );
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
+  const applyScorecardSuggestion = (fields: BarRaiserAmplificationField[]) => {
+    setStoryDraft((previous) => ({
+      ...previous,
+      ...Object.fromEntries(
+        fields.map((field) => [field, barRaiserAmplification.draft[field]]),
+      ),
+    }));
+    setStoryLoadNotice(
+      `Added scorecard upgrade to ${fields.map((field) => field.replace(/_/g, " ")).join(" + ")}.`,
     );
     setActiveTab("star_lab");
     setStoryBuilderRevealTick((previous) => previous + 1);
@@ -2576,24 +2595,90 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-5">
-                  {liveStoryReview.dimensions.map((dimension) => (
-                    <div
-                      key={dimension.id}
-                      className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-950">
-                          {dimension.label}
+                  {liveStoryReview.dimensions.map((dimension) => {
+                    const suggestion = storyScorecardSuggestions.find(
+                      (item) => item.dimensionId === dimension.id,
+                    );
+
+                    return (
+                      <div
+                        key={dimension.id}
+                        className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-950">
+                            {dimension.label}
+                          </p>
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                            {dimension.score}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-700">
+                          {dimension.note}
                         </p>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          {dimension.score}
-                        </span>
+
+                        {suggestion ? (
+                          <div className="mt-4 space-y-3">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                  Elite target
+                                </p>
+                                <span
+                                  className={classNames(
+                                    "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                                    suggestion.gapToTarget === 0
+                                      ? "bg-emerald-100 text-emerald-900"
+                                      : "bg-amber-100 text-amber-900",
+                                  )}
+                                >
+                                  {suggestion.amplifiedScore}/{suggestion.eliteTarget}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-slate-700">
+                                {suggestion.gapToTarget === 0
+                                  ? "This section is already at the elite bar. Keep the same standard."
+                                  : `${suggestion.gapToTarget} points still open. ${suggestion.whyThisHelps}`}
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-900">
+                                {suggestion.exampleLabel}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-cyan-950">
+                                {suggestion.exampleText}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                applyScorecardSuggestion(suggestion.applyFields)
+                              }
+                              className="w-full rounded-full bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white"
+                            >
+                              {suggestion.applyLabel}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-700">
-                        {dimension.note}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={applyBarRaiserAmplification}
+                    className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
+                  >
+                    Add every scorecard fix
+                  </button>
+                  <p className="self-center text-sm text-slate-600">
+                    If you do not want to apply fixes one section at a time, use
+                    the full Bar Raiser rewrite and then trim anything that does
+                    not sound like you.
+                  </p>
                 </div>
                 <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
                   <div className="rounded-[22px] bg-emerald-50 p-4">

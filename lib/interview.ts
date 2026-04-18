@@ -288,6 +288,20 @@ export interface StoryReview {
   repairPlan: string[];
 }
 
+export interface StoryScorecardSuggestion {
+  dimensionId: StoryReviewDimension["id"];
+  label: string;
+  eliteTarget: number;
+  currentScore: number;
+  amplifiedScore: number;
+  gapToTarget: number;
+  exampleLabel: string;
+  exampleText: string;
+  whyThisHelps: string;
+  applyFields: BarRaiserAmplificationField[];
+  applyLabel: string;
+}
+
 export interface EliteStoryWriterInput {
   competency?: CompetencyId;
   categoryTags?: string[];
@@ -3084,6 +3098,92 @@ export function buildBarRaiserAmplification(
       ...new Set([...bestReview.misses, ...bestPressureTest.vulnerabilities]),
     ].slice(0, 6),
   };
+}
+
+export function buildStoryScorecardSuggestions(
+  story: Partial<StoryDraft>,
+): StoryScorecardSuggestion[] {
+  const amplification = buildBarRaiserAmplification(story);
+  const dimensionLookup = Object.fromEntries(
+    amplification.dimensionGoals.map((dimension) => [dimension.id, dimension]),
+  ) as Record<StoryReviewDimension["id"], BarRaiserAmplificationDimensionGoal>;
+
+  return [
+    {
+      dimensionId: "clarity" as const,
+      label: "Clarity",
+      eliteTarget: dimensionLookup.clarity.targetScore,
+      currentScore: dimensionLookup.clarity.currentScore,
+      amplifiedScore: dimensionLookup.clarity.amplifiedScore,
+      gapToTarget: dimensionLookup.clarity.gapToTarget,
+      exampleLabel: "Example stronger opening",
+      exampleText: [amplification.draft.situation, amplification.draft.task]
+        .filter(Boolean)
+        .join(" "),
+      whyThisHelps:
+        "A strong opening gets the stakes and your mandate on the table before the interviewer has a chance to think the story is wandering.",
+      applyFields: ["situation", "task"],
+      applyLabel: "Use stronger opening",
+    },
+    {
+      dimensionId: "ownership" as const,
+      label: "Ownership",
+      eliteTarget: dimensionLookup.ownership.targetScore,
+      currentScore: dimensionLookup.ownership.currentScore,
+      amplifiedScore: dimensionLookup.ownership.amplifiedScore,
+      gapToTarget: dimensionLookup.ownership.gapToTarget,
+      exampleLabel: "Example stronger ownership line",
+      exampleText: [amplification.draft.task, amplification.draft.action]
+        .filter(Boolean)
+        .join(" "),
+      whyThisHelps:
+        'This makes the story unmistakably yours. A Bar Raiser should hear "I decided," "I changed," and "I aligned" without having to drag it out.',
+      applyFields: ["task", "action"],
+      applyLabel: "Use stronger ownership",
+    },
+    {
+      dimensionId: "action" as const,
+      label: "Action",
+      eliteTarget: dimensionLookup.action.targetScore,
+      currentScore: dimensionLookup.action.currentScore,
+      amplifiedScore: dimensionLookup.action.amplifiedScore,
+      gapToTarget: dimensionLookup.action.gapToTarget,
+      exampleLabel: "Example stronger action sequence",
+      exampleText: amplification.draft.action,
+      whyThisHelps:
+        "This version carries more judgment: order, tradeoff, alignment, and follow-through instead of a loose recap.",
+      applyFields: ["action"],
+      applyLabel: "Use stronger action",
+    },
+    {
+      dimensionId: "evidence" as const,
+      label: "Evidence",
+      eliteTarget: dimensionLookup.evidence.targetScore,
+      currentScore: dimensionLookup.evidence.currentScore,
+      amplifiedScore: dimensionLookup.evidence.amplifiedScore,
+      gapToTarget: dimensionLookup.evidence.gapToTarget,
+      exampleLabel: "Example stronger result close",
+      exampleText: amplification.draft.result,
+      whyThisHelps:
+        "This lands the measurable outcome faster and makes the business impact easier to verify.",
+      applyFields: ["result"],
+      applyLabel: "Use stronger result",
+    },
+    {
+      dimensionId: "reflection" as const,
+      label: "Reflection",
+      eliteTarget: dimensionLookup.reflection.targetScore,
+      currentScore: dimensionLookup.reflection.currentScore,
+      amplifiedScore: dimensionLookup.reflection.amplifiedScore,
+      gapToTarget: dimensionLookup.reflection.gapToTarget,
+      exampleLabel: "Example stronger lesson",
+      exampleText: amplification.draft.reflection,
+      whyThisHelps:
+        "A real lesson makes the story sound senior because it shows how your operating system changed, not just what happened once.",
+      applyFields: ["reflection"],
+      applyLabel: "Use stronger lesson",
+    },
+  ];
 }
 
 export function reviewInterviewAnswer(

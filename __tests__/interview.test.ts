@@ -4,6 +4,7 @@ import {
   buildBarRaiserAmplification,
   buildEliteStoryDraft,
   buildEliteStoryPolish,
+  buildStoryScorecardSuggestions,
   buildCurveballPack,
   buildStoryPressureTest,
   coerceInterviewProgress,
@@ -494,6 +495,44 @@ describe("interview prep helpers", () => {
     expect(
       amplified.sourceBankPrompts.every((prompt) =>
         INTERVIEW_QUESTIONS.some((question) => question.prompt === prompt),
+      ),
+    ).toBe(true);
+  });
+
+  it("builds scorecard suggestions with examples and applyable fields", () => {
+    const suggestions = buildStoryScorecardSuggestions({
+      competency: "leadership",
+      categoryTags: ["deliver-results"],
+      title: "Shift save with live labor rebalance",
+      situation:
+        "Mid-shift, outbound volume spiked and one critical conveyor started failing, which put the customer promise for the night at risk.",
+      task:
+        "I had to recover the flow fast without creating a safety issue or starving the rest of the building.",
+      action:
+        "Checked the real bottleneck, moved labor, escalated the equipment issue, reset the cadence with the leads, and stayed close to the floor until the watch points stabilized.",
+      result:
+        "We recovered 3,000 units and kept the backlog under the shutdown point.",
+      reflection:
+        "Since then I act earlier on watch points and build the escalation path into shift handoff.",
+    });
+
+    expect(suggestions).toHaveLength(5);
+    expect(
+      suggestions.every((suggestion) => suggestion.exampleText.length > 0),
+    ).toBe(true);
+    expect(
+      suggestions.some(
+        (suggestion) =>
+          suggestion.dimensionId === "clarity" &&
+          suggestion.applyFields.includes("situation") &&
+          suggestion.applyFields.includes("task"),
+      ),
+    ).toBe(true);
+    expect(
+      suggestions.some(
+        (suggestion) =>
+          suggestion.dimensionId === "evidence" &&
+          suggestion.applyFields.includes("result"),
       ),
     ).toBe(true);
   });
