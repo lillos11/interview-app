@@ -70,6 +70,7 @@ export type InterviewerLensId =
 export type PrepTabTarget =
   | "cockpit"
   | "star_lab"
+  | "final_stories"
   | "drills"
   | "bar_raiser"
   | "executive_coach"
@@ -147,6 +148,12 @@ export interface StoryDraft {
 export interface StarStory extends StoryDraft {
   id: string;
   updatedAt: string;
+}
+
+export interface FinalStory extends StarStory {
+  finalizedAt: string;
+  finalScore: number;
+  readinessLabel: "interview_ready" | "needs_verification";
 }
 
 export interface PitchPack {
@@ -754,6 +761,7 @@ export interface InterviewPrepProgress {
   drillHistory: DrillHistoryRecord[];
   barRaiserHistory: BarRaiserReviewRecord[];
   stories: StarStory[];
+  finalStories: FinalStory[];
   pitch: PitchPack;
   careerProfile: InterviewCareerProfile;
   checklistDoneIds: string[];
@@ -1407,6 +1415,7 @@ const HISTORY_LIMIT = 24;
 const BAR_RAISER_HISTORY_LIMIT = 24;
 const DEBRIEF_VAULT_LIMIT = 12;
 const STORY_LIMIT = 12;
+const FINAL_STORY_LIMIT = 24;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FILLER_PATTERN =
   /\b(um+|uh+|like|you know|sort of|kind of|basically|literally|i guess|maybe|honestly)\b/gi;
@@ -6921,6 +6930,7 @@ export function createInitialInterviewProgress(
     drillHistory: [],
     barRaiserHistory: [],
     stories: [],
+    finalStories: [],
     pitch: {
       present: "",
       proof: "",
@@ -6982,6 +6992,57 @@ export function coerceInterviewProgress(
         })
         .filter((entry): entry is StarStory => entry !== null)
         .slice(0, STORY_LIMIT)
+    : [];
+  const finalStories = Array.isArray(input.finalStories)
+    ? input.finalStories
+        .filter(
+          (entry): entry is Record<string, unknown> =>
+            Boolean(entry) && typeof entry === "object",
+        )
+        .map((entry) => {
+          const story = sanitizeStoryDraft(entry);
+          if (
+            !story.title &&
+            !story.situation &&
+            !story.action &&
+            !story.result
+          ) {
+            return null;
+          }
+
+          const finalScore =
+            typeof entry.finalScore === "number" &&
+            Number.isFinite(entry.finalScore)
+              ? clampScore(entry.finalScore)
+              : reviewStarStory(story).score;
+
+          return {
+            ...story,
+            id:
+              typeof entry.id === "string" && entry.id.trim().length > 0
+                ? entry.id
+                : `final-${Math.random().toString(36).slice(2, 9)}`,
+            updatedAt: isValidDate(entry.updatedAt)
+              ? entry.updatedAt
+              : fallback.updatedAt,
+            finalizedAt: isValidDate(entry.finalizedAt)
+              ? entry.finalizedAt
+              : isValidDate(entry.updatedAt)
+                ? entry.updatedAt
+                : fallback.updatedAt,
+            finalScore,
+            readinessLabel:
+              entry.readinessLabel === "needs_verification" ||
+              entry.readinessLabel === "interview_ready"
+                ? entry.readinessLabel
+                : finalScore >= 85
+                  ? "interview_ready"
+                  : "needs_verification",
+          } satisfies FinalStory;
+        })
+        .filter((entry): entry is FinalStory => entry !== null)
+        .sort((a, b) => (a.finalizedAt < b.finalizedAt ? 1 : -1))
+        .slice(0, FINAL_STORY_LIMIT)
     : [];
 
   const drillHistory = Array.isArray(input.drillHistory)
@@ -7146,6 +7207,7 @@ export function coerceInterviewProgress(
     drillHistory,
     barRaiserHistory,
     stories,
+    finalStories,
     pitch: sanitizePitch((input.pitch as Partial<PitchPack>) ?? {}),
     careerProfile: sanitizeCareerProfile(
       (input.careerProfile as Partial<InterviewCareerProfile>) ?? undefined,
@@ -7258,6 +7320,62 @@ export function deleteStarStory(
     {
       ...progress,
       stories: progress.stories.filter((story) => story.id !== storyId),
+    },
+    now,
+  );
+}
+
+export function saveFinalStory(
+  progress: InterviewPrepProgress,
+  storyInput: Partial<StoryDraft>,
+  now: Date = new Date(),
+  createId: () => string = () =>
+    `final-${Math.random().toString(36).slice(2, 10)}`,
+): InterviewPrepProgress {
+  const story = sanitizeStoryDraft(storyInput);
+  const id =
+    typeof storyInput.id === "string" && storyInput.id.trim().length > 0
+      ? storyInput.id
+      : createId();
+  const review = reviewStarStory(story);
+  const nextStory: FinalStory = {
+    ...story,
+    grounding: refreshStoryGrounding(story),
+    id,
+    updatedAt: now.toISOString(),
+    finalizedAt: now.toISOString(),
+    finalScore: review.score,
+    readinessLabel: review.score >= 85 ? "interview_ready" : "needs_verification",
+  };
+  const storyIndex = progress.finalStories.findIndex((entry) => entry.id === id);
+  const nextStories = [...progress.finalStories];
+
+  if (storyIndex >= 0) {
+    nextStories[storyIndex] = nextStory;
+  } else {
+    nextStories.unshift(nextStory);
+  }
+
+  return touchPracticeDay(
+    {
+      ...progress,
+      finalStories: nextStories
+        .sort((a, b) => (a.finalizedAt < b.finalizedAt ? 1 : -1))
+        .slice(0, FINAL_STORY_LIMIT),
+    },
+    now,
+  );
+}
+
+export function deleteFinalStory(
+  progress: InterviewPrepProgress,
+  storyId: string,
+  now: Date = new Date(),
+): InterviewPrepProgress {
+  return touchPracticeDay(
+    {
+      ...progress,
+      finalStories: progress.finalStories.filter((story) => story.id !== storyId),
     },
     now,
   );

@@ -23,6 +23,7 @@ import {
   buildStoryPressureTest,
   coerceInterviewProgress,
   createInitialInterviewProgress,
+  deleteFinalStory,
   deleteStarStory,
   GAME_DAY_CHECKLIST,
   getAmazonCoverageSummary,
@@ -39,6 +40,7 @@ import {
   recordDrillResult,
   reviewInterviewAnswer,
   reviewStarStory,
+  saveFinalStory,
   saveStarStory,
   saveInterviewDebrief,
   scoreStarStory,
@@ -258,6 +260,44 @@ describe("interview prep helpers", () => {
       "daily exec updates",
     );
     expect(removed.stories).toEqual([]);
+  });
+
+  it("keeps finished stories in a separate final story vault", () => {
+    const now = new Date("2026-03-03T12:00:00.000Z");
+    const initial = createInitialInterviewProgress(now);
+    const final = saveFinalStory(
+      initial,
+      {
+        competency: "leadership",
+        categoryTags: ["deliver-results", "ownership"],
+        title: "Final department turnaround",
+        situation:
+          "During Q1 2026, Pack Singles was running at 80% of plan and customer promise was at risk.",
+        task:
+          "I owned the turnaround and had to align Ops, Quality, and Learning on one standard.",
+        action:
+          "First, I standardized stations, then I chose to pause a lower-priority cleanup project, built a dashboard, trained 60 associates, and created a train-the-trainer mechanism.",
+        result:
+          "Pack rate improved from 80% to 110% of plan over 3 months, DPMO dropped 35%, and the standard held across shifts.",
+        reflection:
+          "Since then, I build the control mechanism before I declare an operational win finished.",
+      },
+      now,
+      () => "final-story-1",
+    );
+    const coerced = coerceInterviewProgress(final)!;
+    const removed = deleteFinalStory(final, "final-story-1", now);
+
+    expect(final.finalStories).toHaveLength(1);
+    expect(final.stories).toHaveLength(0);
+    expect(final.finalStories[0]).toMatchObject({
+      id: "final-story-1",
+      title: "Final department turnaround",
+      readinessLabel: "interview_ready",
+    });
+    expect(final.finalStories[0].finalScore).toBeGreaterThanOrEqual(85);
+    expect(coerced.finalStories[0].grounding?.kind).toBe("manual");
+    expect(removed.finalStories).toEqual([]);
   });
 
   it("sanitizes persisted progress objects during coercion", () => {

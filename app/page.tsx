@@ -48,6 +48,7 @@ import {
   coerceInterviewProgress,
   createEmptyStoryDraft,
   createInitialInterviewProgress,
+  deleteFinalStory,
   deleteStarStory,
   GAME_DAY_CHECKLIST,
   getAmazonCoverageSummary,
@@ -75,6 +76,7 @@ import {
   recordDrillResult,
   RED_FLAGS,
   reviewStarStory,
+  saveFinalStory,
   saveStarStory,
   saveInterviewDebrief,
   toggleChecklistItem,
@@ -146,6 +148,7 @@ interface EnduranceSessionState {
 const tabs: Array<{ id: InterviewTab; label: string }> = [
   { id: "cockpit", label: "Cockpit" },
   { id: "star_lab", label: "STAR Lab" },
+  { id: "final_stories", label: "Final Stories" },
   { id: "drills", label: "Mock Drills" },
   { id: "bar_raiser", label: "Bar Raiser" },
   { id: "executive_coach", label: "Exec Coach" },
@@ -684,6 +687,7 @@ export default function HomePage() {
     string | null
   >(null);
   const [storyLoadNotice, setStoryLoadNotice] = useState<string | null>(null);
+  const [finalStoryNotice, setFinalStoryNotice] = useState<string | null>(null);
   const [storyBuilderRevealTick, setStoryBuilderRevealTick] = useState(0);
   const [barRaiserLensId, setBarRaiserLensId] =
     useState<InterviewerLensId | null>(null);
@@ -761,6 +765,18 @@ export default function HomePage() {
 
     return () => window.clearTimeout(timeout);
   }, [storyLoadNotice]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !finalStoryNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setFinalStoryNotice(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timeout);
+  }, [finalStoryNotice]);
 
   useEffect(() => {
     if (activeTab !== "star_lab" || storyBuilderRevealTick === 0) {
@@ -1033,6 +1049,16 @@ export default function HomePage() {
   const recentDrills = progress.drillHistory.slice(0, 5);
   const recentBarRaiserReviews = progress.barRaiserHistory.slice(0, 5);
   const recentStories = progress.stories.slice(0, 5);
+  const recentFinalStories = progress.finalStories.slice(0, 8);
+  const interviewReadyFinalStories = progress.finalStories.filter(
+    (story) => story.readinessLabel === "interview_ready",
+  ).length;
+  const averageFinalStoryScore = progress.finalStories.length
+    ? Math.round(
+        progress.finalStories.reduce((sum, story) => sum + story.finalScore, 0) /
+          progress.finalStories.length,
+      )
+    : null;
   const averageBarRaiserScore = recentBarRaiserReviews.length
     ? Math.round(
         recentBarRaiserReviews.reduce((sum, entry) => sum + entry.score, 0) /
@@ -1723,6 +1749,46 @@ export default function HomePage() {
     );
   };
 
+  const promoteStoryDraftToFinal = () => {
+    const hasCoreContent = [
+      storyDraft.title,
+      storyDraft.situation,
+      storyDraft.action,
+      storyDraft.result,
+    ].some((value) => value.trim().length > 0);
+
+    if (!hasCoreContent) {
+      setFinalStoryNotice(
+        "Add a title, situation/action, and result before moving this into Final Stories.",
+      );
+      setActiveTab("final_stories");
+      return;
+    }
+
+    const nextDraft: StoryDraft = {
+      ...storyDraft,
+      id: editingStoryId ?? storyDraft.id,
+    };
+
+    setProgress((previous) => saveFinalStory(previous, nextDraft, new Date()));
+    setFinalStoryNotice(
+      `Moved "${storyDraft.title || "Untitled story"}" into Final Stories.`,
+    );
+    setActiveTab("final_stories");
+  };
+
+  const promoteSavedStoryToFinal = (storyId: string) => {
+    const story = progress.stories.find((entry) => entry.id === storyId);
+
+    if (!story) {
+      return;
+    }
+
+    setProgress((previous) => saveFinalStory(previous, story, new Date()));
+    setFinalStoryNotice(`Moved "${story.title || "Untitled story"}" into Final Stories.`);
+    setActiveTab("final_stories");
+  };
+
   const loadStoryForEdit = (storyId: string) => {
     const story = progress.stories.find((entry) => entry.id === storyId);
     if (!story) {
@@ -1747,6 +1813,30 @@ export default function HomePage() {
     setStoryBuilderRevealTick((previous) => previous + 1);
   };
 
+  const loadFinalStoryForEdit = (storyId: string) => {
+    const story = progress.finalStories.find((entry) => entry.id === storyId);
+    if (!story) {
+      return;
+    }
+
+    setStoryDraft({
+      id: story.id,
+      competency: story.competency,
+      categoryTags: story.categoryTags,
+      title: story.title,
+      situation: story.situation,
+      task: story.task,
+      action: story.action,
+      result: story.result,
+      reflection: story.reflection,
+      grounding: story.grounding,
+    });
+    setEditingStoryId(story.id);
+    setStoryLoadNotice(`Loaded final story for editing: ${story.title || "Untitled story"}.`);
+    setActiveTab("star_lab");
+    setStoryBuilderRevealTick((previous) => previous + 1);
+  };
+
   const removeStory = (storyId: string) => {
     setProgress((previous) => deleteStarStory(previous, storyId, new Date()));
 
@@ -1759,6 +1849,10 @@ export default function HomePage() {
         ),
       );
     }
+  };
+
+  const removeFinalStory = (storyId: string) => {
+    setProgress((previous) => deleteFinalStory(previous, storyId, new Date()));
   };
 
   const startFreshStory = () => {
@@ -2948,6 +3042,13 @@ export default function HomePage() {
                           </p>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => promoteSavedStoryToFinal(story.id)}
+                            className="rounded-full bg-red-700 px-3 py-2 text-sm font-semibold text-white"
+                          >
+                            Finalize
+                          </button>
                           <button
                             type="button"
                             onClick={() => loadStoryForEdit(story.id)}
@@ -4769,6 +4870,13 @@ export default function HomePage() {
               </button>
               <button
                 type="button"
+                onClick={promoteStoryDraftToFinal}
+                className="rounded-full bg-red-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(185,28,28,0.22)]"
+              >
+                Move to Final Stories
+              </button>
+              <button
+                type="button"
                 onClick={startFreshStory}
                 className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800"
               >
@@ -4776,6 +4884,220 @@ export default function HomePage() {
               </button>
             </div>
           </article>
+        </section>
+      ) : null}
+
+      {activeTab === "final_stories" ? (
+        <section className="space-y-6">
+          <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Final story vault
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  Put only updated, finished, interview-ready stories here.
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+                  Use this tab as your final rehearsal list. Drafts stay in STAR
+                  Lab. Raw source stories stay in Story References. This vault is
+                  for stories you would actually tell in the loop.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={promoteStoryDraftToFinal}
+                className="rounded-full bg-red-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(185,28,28,0.22)]"
+              >
+                Add current draft
+              </button>
+            </div>
+
+            {finalStoryNotice ? (
+              <div className="mt-5 rounded-[22px] border border-red-200 bg-red-50/90 p-4 text-sm font-semibold leading-6 text-red-950">
+                {finalStoryNotice}
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Finished stories
+                </p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">
+                  {progress.finalStories.length}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Interview-ready
+                </p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">
+                  {interviewReadyFinalStories}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white/82 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Average final score
+                </p>
+                <p className="mt-2 text-3xl font-semibold text-slate-950">
+                  {averageFinalStoryScore ?? "--"}
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <div className="grid gap-6 2xl:grid-cols-[1fr_0.8fr]">
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Finished stories
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    Your final loop-ready list.
+                  </h2>
+                </div>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                  {recentFinalStories.length} shown
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {recentFinalStories.length ? (
+                  recentFinalStories.map((story) => (
+                    <article
+                      key={story.id}
+                      className="rounded-[24px] border border-slate-200 bg-white/82 p-4"
+                    >
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-slate-950">
+                              {story.title || "Untitled final story"}
+                            </h3>
+                            <span
+                              className={classNames(
+                                "rounded-full px-2.5 py-1 text-xs font-semibold",
+                                story.readinessLabel === "interview_ready"
+                                  ? "bg-emerald-100 text-emerald-900"
+                                  : "bg-amber-100 text-amber-900",
+                              )}
+                            >
+                              {story.readinessLabel === "interview_ready"
+                                ? "Interview ready"
+                                : "Verify details"}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                              {story.finalScore}%
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                              {getCompetencyById(story.competency).title}
+                            </span>
+                            {story.categoryTags.slice(0, 5).map((categoryId) => (
+                              <span
+                                key={categoryId}
+                                className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-900"
+                              >
+                                {getQuestionCategoryById(categoryId).label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
+                            <div className="rounded-2xl bg-slate-50 p-3">
+                              <span className="font-semibold text-slate-950">
+                                Result:
+                              </span>{" "}
+                              {story.result || "No result saved yet."}
+                            </div>
+                            <div className="rounded-2xl bg-slate-50 p-3">
+                              <span className="font-semibold text-slate-950">
+                                Reflection:
+                              </span>{" "}
+                              {story.reflection || "No reflection saved yet."}
+                            </div>
+                          </div>
+                          <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-500">
+                            Finalized {formatDate(story.finalizedAt)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadFinalStoryForEdit(story.id)}
+                            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+                          >
+                            Edit in STAR Lab
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFinalStory(story.id)}
+                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-[24px] border border-dashed border-slate-300 p-5 text-sm leading-6 text-slate-600">
+                    No final stories yet. Finish a story in STAR Lab, apply Bar
+                    Raiser Amplify if needed, then move it here once you would
+                    actually use it in the interview.
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="glass-panel rounded-[28px] border border-slate-200/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Drafts waiting for final polish
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Promote only what is actually ready.
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                Brutal rule: if the story still has placeholders, weak metrics,
+                or shaky ownership, keep it in STAR Lab. Final Stories should be
+                the clean rehearsal set.
+              </p>
+              <div className="mt-5 space-y-3">
+                {progress.stories.length ? (
+                  progress.stories.slice(0, 8).map((story) => (
+                    <div
+                      key={story.id}
+                      className="rounded-[22px] border border-slate-200 bg-white/82 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            {story.title || "Untitled story"}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                            Score {reviewStarStory(story).score}%
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => promoteSavedStoryToFinal(story.id)}
+                          className="rounded-full bg-red-700 px-3 py-2 text-sm font-semibold text-white"
+                        >
+                          Finalize
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                    No drafts saved yet. Build one in STAR Lab first.
+                  </div>
+                )}
+              </div>
+            </article>
+          </div>
         </section>
       ) : null}
 
